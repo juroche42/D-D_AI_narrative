@@ -1,0 +1,43 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../app/generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [vector]
+}
+
+// Stocke les souvenirs narratifs du Dungeon Master IA
+// (actions des joueurs, événements, PNJ rencontrés, lore D&D...)
+model Memory {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // Texte brut du souvenir (ex: "Le joueur Thorin a tué le dragon rouge")
+  content String
+
+  // Type de souvenir pour filtrer les recherches
+  type MemoryType @default(EVENT)
+
+  // Identifiant de la session de jeu
+  sessionId String?
+
+  // Vecteur d'embedding généré par le LLM (1536 dims pour OpenAI, 768 pour modèles open-source)
+  embedding Unsupported("vector(1536)")?
+}
+
+enum MemoryType {
+  EVENT // Action d'un joueur ou événement narratif
+  LORE // Information sur l'univers D&D
+  NPC // Données sur un PNJ
+  QUEST // Quête ou objectif
+  RULE // Règle de jeu
+}
