@@ -64,12 +64,12 @@ Créez un fichier `.env` à la racine du dossier `d-d_ai_narrative/` en vous bas
 
 ```env
 # PostgreSQL
-POSTGRES_USER=#db_user
-POSTGRES_PASSWORD=#db_password
-POSTGRES_DB=#db_name
+POSTGRES_USER=<db_user>
+POSTGRES_PASSWORD=<db_password>
+POSTGRES_DB=<db_name>
 
 # Prisma
-DATABASE_URL="postgresql://postgres:#db_user@localhost:5432/#db_name"
+DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}"
 ```
 
 ### 4. Démarrer la base de données avec Docker

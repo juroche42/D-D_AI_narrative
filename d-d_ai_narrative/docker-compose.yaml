@@ -1,7 +1,7 @@
 services:
   postgres:
     image: pgvector/pgvector:pg17
-    container_name: nextjs_postgres
+    container_name: dnd_ai_postgres
     restart: unless-stopped
     ports:
       - "5432:5432"
