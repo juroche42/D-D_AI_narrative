@@ -27,6 +27,7 @@ L'innovation majeure du projet réside dans l'utilisation d'une **Intelligence A
 | **Prisma 7** | ORM pour la base de données |
 | **PostgreSQL 17** | Base de données relationnelle |
 | **Docker** | Conteneurisation de la base de données |
+| **pgvector** | Extension PostgreSQL pour les embeddings vectoriels de l'IA |
 | **Tailwind CSS 4** | Styles |
 | **Swagger / OpenAPI** | Documentation de l'API REST |
 
@@ -97,7 +98,35 @@ La documentation API Swagger est disponible sur **[http://localhost:3000/api-doc
 
 ---
 
-## 🐳 Commandes Docker utiles
+## 🧠 Intelligence Artificielle & Mémoire Vectorielle
+
+L'IA Dungeon Master utilise un système de **mémoire vectorielle** basé sur `pgvector` (extension PostgreSQL) pour garantir la cohérence narrative.
+
+### Comment ça fonctionne
+
+```
+Événement du jeu → Embedding (LLM) → Vecteur stocké dans PostgreSQL
+                                              ↓
+Nouvelle situation → Recherche par similarité → Top 5 souvenirs pertinents
+                                              ↓
+                           Injection dans le prompt → Réponse du DM IA
+```
+
+### Types de mémoire gérés
+
+| Type | Exemple |
+|---|---|
+| `EVENT` | "Thorin a tué le dragon rouge au tour 42" |
+| `LORE` | "La forêt de Cormanthor est hantée" |
+| `NPC` | "Garrick le forgeron est allié des joueurs" |
+| `QUEST` | "Récupérer l'épée légendaire de Baldur" |
+| `RULE` | "Un jet de 20 naturel est un coup critique" |
+
+> 💡 **pgvector** est intégré directement dans PostgreSQL, pas besoin d'un service séparé.
+
+---
+
+
 
 | Commande | Description |
 |---|---|
