@@ -1,0 +1,1 @@
+export { swaggerSpec } from './swaggerConfig';
