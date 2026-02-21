@@ -15,6 +15,15 @@ datasource db {
   extensions = [vector]
 }
 
+model User {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  username String @unique
+  password String
+}
+
 // Stocke les souvenirs narratifs du Dungeon Master IA
 // (actions des joueurs, événements, PNJ rencontrés, lore D&D...)
 model Memory {
