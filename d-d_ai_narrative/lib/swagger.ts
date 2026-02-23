@@ -1,1 +1,2 @@
-export { swaggerSpec } from './swagger/swaggerConfig';
+import "server-only"
+import swaggerJSDoc from "swagger-jsdoc"
