@@ -29,6 +29,9 @@ importers:
       swagger-ui-react:
         specifier: ^5.31.1
         version: 5.31.1(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@tailwindcss/postcss':
         specifier: ^4
