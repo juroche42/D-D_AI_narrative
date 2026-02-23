@@ -31,6 +31,7 @@
     "pg": "^8.18.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "server-only": "^0.0.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-react": "^5.31.1"
   },

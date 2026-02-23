@@ -1,3 +1,4 @@
+import "server-only"
 import swaggerJSDoc from "swagger-jsdoc"
 
 export const swaggerSpec = swaggerJSDoc({
