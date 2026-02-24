@@ -63,11 +63,7 @@ cd d-d_ai_narrative
 
 ### 2. Configurer les variables d'environnement
 
-```bash
-cp .env.example .env
-```
-
-Éditez `.env` et renseignez vos valeurs (les valeurs par défaut fonctionnent pour le développement local) :
+Créez un fichier `.env` à la racine du projet avec le contenu suivant (à adapter selon vos besoins) :
 
 ```dotenv
 POSTGRES_DB=dnd_ai
@@ -84,7 +80,7 @@ docker compose up -d
 ```
 
 Cela démarre :
-- **PostgreSQL 17** avec l'extension `pgvector` déjà activée (port `5432`)
+- **PostgreSQL 17** avec l'extension `pgvector` déjà activée (port `5433`)
 - **Adminer** — interface web pour gérer la DB (port `8080` → http://localhost:8080)
 
 Pour se connecter via Adminer :

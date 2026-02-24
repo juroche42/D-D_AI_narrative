@@ -1,41 +1,38 @@
 import { PrismaClient } from "@/app/generated/prisma/client";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 
 const SALT_ROUNDS = 12;
 
-const users = [
-  {
-    username: "dungeon_master",
-    password: "Password123!",
-  },
-  {
-    username: "thorin_oakenshield",
-    password: "Password123!",
-  },
-  {
-    username: "aragorn_strider",
-    password: "Password123!",
-  },
-];
+const USERNAMES = ["dungeon_master", "thorin_oakenshield", "aragorn_strider"];
+
+function generateRandomPassword(length = 16): string {
+  const charset =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+  return Array.from(crypto.randomBytes(length))
+    .map((byte) => charset[byte % charset.length])
+    .join("");
+}
 
 export async function seedUsers(prisma: PrismaClient) {
   console.log("🌱 Seeding users...");
 
-  for (const user of users) {
-    const hashedPassword = await bcrypt.hash(user.password, SALT_ROUNDS);
+  for (const username of USERNAMES) {
+    const plainPassword = generateRandomPassword();
+    const hashedPassword = await bcrypt.hash(plainPassword, SALT_ROUNDS);
 
     await prisma.user.upsert({
-      where: { username: user.username },
+      where: { username },
       update: {},
       create: {
-        username: user.username,
+        username,
         password: hashedPassword,
       },
     });
 
-    console.log(`  ✔ User "${user.username}" created/skipped`);
+    console.log(`  ✔ User "${username}" created/skipped (password: ${plainPassword})`);
   }
 
-  console.log(`✅ ${users.length} users seeded`);
+  console.log(`✅ ${USERNAMES.length} users seeded`);
 }
 
