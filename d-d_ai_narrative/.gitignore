@@ -40,4 +40,4 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# /app/generated/prisma is committed intentionally so Vercel can compile without running prisma generate first
+/app/generated/prisma
