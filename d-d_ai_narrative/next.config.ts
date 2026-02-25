@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   turbopack: {},
-  serverExternalPackages: ["swagger-jsdoc", "@prisma/client", "pg"],
+  serverExternalPackages: ["swagger-jsdoc", "@prisma/client", "pg", "bcrypt"],
 };
 
 export default nextConfig;
