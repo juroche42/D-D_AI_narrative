@@ -4,7 +4,7 @@ services:
     container_name: dnd_ai_postgres
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "5433:5432"
     env_file:
       - .env
     environment:
@@ -14,6 +14,22 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  adminer:
+    image: adminer:latest
+    container_name: dnd_ai_adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres_data:
+
