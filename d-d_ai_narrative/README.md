@@ -69,8 +69,8 @@ Créez un fichier `.env` à la racine du projet avec le contenu suivant (à adap
 POSTGRES_DB=dnd_ai
 POSTGRES_USER=dnd_user
 POSTGRES_PASSWORD=change_me
-POSTGRES_PORT=5432
-DATABASE_URL="postgresql://dnd_user:change_me@localhost:5432/dnd_ai?schema=public"
+POSTGRES_PORT=5433
+DATABASE_URL="postgresql://dnd_user:change_me@localhost:5433/dnd_ai?schema=public"
 ```
 
 ### 3. Démarrer la base de données avec Docker
