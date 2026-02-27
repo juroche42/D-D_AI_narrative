@@ -60,5 +60,5 @@ jobs:
           WEBHOOK_URL: ${{ secrets.NOTIFICATION_WEBHOOK_URL }}
         run: |
           curl -X POST -H "Content-Type: application/json" \
-            -d "{\"text\":\"Staging deploy failed for ${GITHUB_REPOSITORY} on ${GITHUB_REF_NAME}. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+            -d "{\"text\":\"Staging deploy failed for ${GITHUB_REPOSITORY} on ${GITHUB_REF_NAME}. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\",\"content\":\"Staging deploy failed for ${GITHUB_REPOSITORY} on ${GITHUB_REF_NAME}. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
             "$WEBHOOK_URL"
