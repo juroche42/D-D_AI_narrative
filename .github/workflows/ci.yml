@@ -50,7 +50,8 @@ jobs:
         if: failure() && env.WEBHOOK_URL != ''
         env:
           WEBHOOK_URL: ${{ secrets.NOTIFICATION_WEBHOOK_URL }}
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
         run: |
           curl -X POST -H "Content-Type: application/json" \
-            -d "{\"text\":\"CI failed for ${GITHUB_REPOSITORY} on ${GITHUB_REF_NAME}. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+            -d "{\"text\":\"CI failed for ${GITHUB_REPOSITORY} on ${BRANCH_NAME}. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
             "$WEBHOOK_URL"
