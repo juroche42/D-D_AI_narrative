@@ -151,8 +151,8 @@ http://localhost:3000/api-docs
 Le projet inclut 3 workflows dans `.github/workflows` :
 
 - `ci.yml` : lance `lint`, `typecheck` et `build` sur `push`/`pull_request` vers `develop` et `main`
-- `deploy-staging.yml` : déploie automatiquement sur l'environnement **staging** (environnement **Preview** Vercel) à chaque `push` sur `develop`
-- `deploy-production.yml` : déploie automatiquement sur l'environnement **production** à chaque `push` sur `main`
+- `deploy-staging.yml` : déploie automatiquement sur l'environnement **staging** (environnement **Preview** Vercel) après une CI réussie sur `develop`
+- `deploy-production.yml` : déploie automatiquement sur l'environnement **production** après une CI réussie sur `main`
 
 > Remarque : dans Vercel, l'environnement **Preview** est utilisé comme environnement de **staging** pour ce projet.  
 > Le workflow `deploy-staging.yml` utilise `vercel pull --environment=preview` (et un build sans `--prod`), ce qui correspond au comportement d'un déploiement de staging.
@@ -168,14 +168,6 @@ Dans `Settings > Secrets and variables > Actions`, créer :
 ### Notifications en cas d'échec
 
 Chaque workflow envoie une notification automatique vers `NOTIFICATION_WEBHOOK_URL` en cas d'échec (CI ou déploiement) avec un lien direct vers le run GitHub Actions.
-
-### Branching conseillé pour ce ticket
-
-```bash
-git checkout -b 'dan-16-CI/CD'
-```
-
-Puis ouvrir une Pull Request vers `develop` pour valider le pipeline CI avant le merge.
 
 ---
 
