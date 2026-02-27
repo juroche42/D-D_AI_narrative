@@ -1,13 +1,16 @@
 name: Deploy Production
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows:
+      - ci.yml
+    types:
+      - completed
   workflow_dispatch:
 
 jobs:
   deploy-production:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment: production
 
