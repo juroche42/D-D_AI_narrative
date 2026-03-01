@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 
-import { RegisterSchema, type RegisterInput } from '@/lib/validations/auth';
+import { LoginSchema, type LoginInput } from '@/lib/validations/auth';
+import { loginAction } from '@/app/(auth)/login/actions';
 import {
   Form,
   FormControl,
@@ -19,71 +19,21 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
-const PASSWORD_CRITERIA = [
-  { label: '8 caractères minimum', test: (p: string) => p.length >= 8 },
-  { label: 'Une majuscule', test: (p: string) => /[A-Z]/.test(p) },
-  { label: 'Un chiffre', test: (p: string) => /[0-9]/.test(p) },
-];
-
-function PasswordCriteria({ password, visible }: { password: string; visible: boolean }) {
-  if (!visible) return null;
-
-  return (
-    <ul className="mt-2 space-y-1">
-      {PASSWORD_CRITERIA.map(({ label, test }) => {
-        const ok = test(password);
-        return (
-          <li
-            key={label}
-            className={`flex items-center gap-1.5 text-[11px] font-medium transition-colors ${ok ? 'text-green-500' : 'text-gray-500'}`}
-          >
-            <span aria-hidden="true">{ok ? '✓' : '○'}</span>
-            {label}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-export function RegisterForm() {
-  const router = useRouter();
+export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
 
-  const form = useForm<RegisterInput>({
-    resolver: zodResolver(RegisterSchema),
-    defaultValues: { username: '', password: '', confirmPassword: '' },
+  const form = useForm<LoginInput>({
+    resolver: zodResolver(LoginSchema),
+    defaultValues: { username: '', password: '' },
   });
 
-  const passwordValue = form.watch('password');
-
-  const onSubmit = async (values: RegisterInput) => {
+  const onSubmit = async (values: LoginInput) => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
-      });
-      const json = await res.json();
-
-      if (!res.ok) {
-        if (json.error?.code === 'CONFLICT') {
-          form.setError('username', { message: 'Ce pseudo est déjà pris' });
-        } else if (json.error?.code === 'VALIDATION_ERROR') {
-          Object.entries(json.error.details?.fieldErrors ?? {}).forEach(([field, messages]) => {
-            form.setError(field as keyof RegisterInput, {
-              message: (messages as string[])[0],
-            });
-          });
-        } else {
-          form.setError('root', { message: 'Une erreur est survenue, réessaie.' });
-        }
-        return;
+      const result = await loginAction(values);
+      if (result?.error) {
+        form.setError('root', { message: result.error });
       }
-
-      router.push('/login?registered=true');
     } finally {
       setIsLoading(false);
     }
@@ -96,10 +46,10 @@ export function RegisterForm() {
           D&amp;D AI Narrative
         </p>
         <h1 className="mt-3 text-3xl font-black text-white uppercase italic tracking-tight">
-          Inscription
+          Connexion
         </h1>
         <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">
-          Commencez votre légende
+          Reprenez votre quête
         </p>
       </CardHeader>
 
@@ -142,33 +92,7 @@ export function RegisterForm() {
                       {...field}
                       type="password"
                       placeholder="••••••••"
-                      autoComplete="new-password"
-                      className="bg-black/40 border-white/5 rounded-xl px-4 py-3 h-auto text-gray-200 placeholder:text-gray-600 focus-visible:ring-red-600/20 focus-visible:border-red-600"
-                      onFocus={() => setPasswordFocused(true)}
-                      onBlur={() => setPasswordFocused(false)}
-                    />
-                  </FormControl>
-                  <PasswordCriteria password={passwordValue} visible={passwordFocused || !!passwordValue} />
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Confirmer le mot de passe */}
-            <FormField
-              control={form.control}
-              name="confirmPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-black uppercase tracking-widest text-gray-500">
-                    Confirmer le mot de passe
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      type="password"
-                      placeholder="••••••••"
-                      autoComplete="new-password"
+                      autoComplete="current-password"
                       className="bg-black/40 border-white/5 rounded-xl px-4 py-3 h-auto text-gray-200 placeholder:text-gray-600 focus-visible:ring-red-600/20 focus-visible:border-red-600"
                     />
                   </FormControl>
@@ -177,7 +101,7 @@ export function RegisterForm() {
               )}
             />
 
-            {/* Erreur globale */}
+            {/* Erreur globale (identifiants incorrects) */}
             {form.formState.errors.root && (
               <p aria-live="polite" className="text-sm font-medium text-red-500">
                 {form.formState.errors.root.message}
@@ -193,20 +117,20 @@ export function RegisterForm() {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Création...
+                  Connexion...
                 </>
               ) : (
-                'Créer mon compte'
+                'Se connecter'
               )}
             </Button>
 
-            {/* Lien vers login */}
+            {/* Lien vers register */}
             <p className="text-center">
               <a
-                href="/login"
+                href="/register"
                 className="text-[10px] font-black uppercase text-gray-500 hover:text-red-500 transition-colors"
               >
-                Déjà un compte ? Se connecter
+                Pas encore de compte ? S&apos;inscrire
               </a>
             </p>
           </form>

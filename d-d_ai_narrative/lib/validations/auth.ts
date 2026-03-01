@@ -23,3 +23,10 @@ export const RegisterSchema = z
   });
 
 export type RegisterInput = z.infer<typeof RegisterSchema>;
+
+export const LoginSchema = z.object({
+  username: z.string().min(1, 'Pseudo requis'),
+  password: z.string().min(1, 'Mot de passe requis'),
+});
+
+export type LoginInput = z.infer<typeof LoginSchema>;

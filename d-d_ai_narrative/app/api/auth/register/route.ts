@@ -82,7 +82,6 @@ import { registerUser } from '@/lib/services/auth';
  */
 export const POST = withErrorHandler(
   withValidation(RegisterSchema, async (_req, { data }): Promise<NextResponse> => {
-    // confirmPassword est UI-only — ne pas le transmettre au service
     const { confirmPassword: _, ...input } = data;
     const user = await registerUser(input);
     return ApiResponse.created(user, 'Compte créé avec succès');
