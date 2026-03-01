@@ -19,31 +19,31 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
-/** Indicateur de force du mot de passe (3 barres colorées). */
-function PasswordStrengthBar({ password }: { password: string }) {
+const PASSWORD_CRITERIA = [
+  { label: '8 caractères minimum', test: (p: string) => p.length >= 8 },
+  { label: 'Une majuscule', test: (p: string) => /[A-Z]/.test(p) },
+  { label: 'Un chiffre', test: (p: string) => /[0-9]/.test(p) },
+];
+
+/** Critères de validation du mot de passe avec retour visuel en temps réel. */
+function PasswordCriteria({ password }: { password: string }) {
   if (!password) return null;
 
-  let strength = 0;
-  if (password.length >= 8) strength++;
-  if (/[A-Z]/.test(password)) strength++;
-  if (/[0-9]/.test(password)) strength++;
-
-  const getColor = (barIndex: number) => {
-    if (strength <= barIndex) return 'bg-white/10';
-    if (strength === 1) return 'bg-red-500';
-    if (strength === 2) return 'bg-orange-500';
-    return 'bg-green-500';
-  };
-
   return (
-    <div className="mt-2 flex gap-1" role="presentation" aria-hidden="true">
-      {[0, 1, 2].map((i) => (
-        <div
-          key={i}
-          className={`h-1 flex-1 rounded-full transition-all duration-300 ${getColor(i)}`}
-        />
-      ))}
-    </div>
+    <ul className="mt-2 space-y-1">
+      {PASSWORD_CRITERIA.map(({ label, test }) => {
+        const ok = test(password);
+        return (
+          <li
+            key={label}
+            className={`flex items-center gap-1.5 text-[11px] font-medium transition-colors ${ok ? 'text-green-500' : 'text-gray-500'}`}
+          >
+            <span aria-hidden="true">{ok ? '✓' : '○'}</span>
+            {label}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -146,7 +146,7 @@ export function RegisterForm() {
                       className="bg-black/40 border-white/5 rounded-xl px-4 py-3 h-auto text-gray-200 placeholder:text-gray-600 focus-visible:ring-red-600/20 focus-visible:border-red-600"
                     />
                   </FormControl>
-                  <PasswordStrengthBar password={passwordValue} />
+                  <PasswordCriteria password={passwordValue} />
                   <FormMessage />
                 </FormItem>
               )}
