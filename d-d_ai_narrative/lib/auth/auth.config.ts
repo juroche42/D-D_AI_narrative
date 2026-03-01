@@ -18,6 +18,7 @@ export const authConfig: NextAuthConfig = {
   callbacks: {
     authorized({ auth, request }) {
       const { pathname } = request.nextUrl;
+      if (request.method === 'OPTIONS') return true; // Authorize CORS preflight requests
       if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) return true;
       return !!auth?.user;
     },

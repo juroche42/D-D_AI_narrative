@@ -25,7 +25,7 @@ const makeReq = (requestId?: string) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(ApiResponse.error).mockReturnValue({ status: 500 } as unknown as NextResponse);
+  vi.mocked(ApiResponse.error).mockReturnValue({ status: 500 } as unknown as ReturnType<typeof ApiResponse.error>);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

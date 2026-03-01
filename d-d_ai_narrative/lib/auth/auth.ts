@@ -5,8 +5,8 @@ import bcrypt from 'bcrypt';
 import { LoginSchema } from '@/lib/validations/auth';
 import { authConfig } from './auth.config';
 
-/** Hash invalide utilisé pour éviter les timing attacks lorsque l'utilisateur n'existe pas */
-const DUMMY_HASH = '$2b$12$invalidhashpreventstimingattac000000000000000000000000';
+/** Hash factice valide (format bcrypt) pour éviter les timing attacks lorsque l'utilisateur n'existe pas */
+const DUMMY_HASH = '$2b$12$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
