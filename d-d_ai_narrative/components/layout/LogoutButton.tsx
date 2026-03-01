@@ -14,7 +14,11 @@ export function LogoutButton({ variant = 'header' }: LogoutButtonProps) {
 
   const handleLogout = () => {
     startTransition(async () => {
-      await logoutAction();
+      try {
+        await logoutAction();
+      } catch (error) {
+        console.error('Erreur lors de la déconnexion:', error);
+      }
     });
   };
 

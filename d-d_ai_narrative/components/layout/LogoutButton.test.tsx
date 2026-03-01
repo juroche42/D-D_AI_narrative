@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { LogoutButton } from './LogoutButton';
 
 vi.mock('@/app/(auth)/logout/actions', () => ({
@@ -28,7 +28,9 @@ describe('LogoutButton', () => {
         () => new Promise((resolve) => setTimeout(resolve, 100)),
       );
       render(<LogoutButton variant="header" />);
-      fireEvent.click(screen.getByRole('button', { name: /se déconnecter/i }));
+      act(() => {
+        fireEvent.click(screen.getByRole('button', { name: /se déconnecter/i }));
+      });
       expect(screen.getByRole('button')).toBeDisabled();
     });
   });
