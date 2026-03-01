@@ -68,6 +68,8 @@ model Character {
   armorClass Int
   xp         Int @default(0)
   level      Int @default(1)
+
+  @@unique([userId, name])
 }
 
 enum Race {
