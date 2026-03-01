@@ -18,10 +18,10 @@ const mockNextResponseJson = vi.mocked(NextResponse.json);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockNextResponseJson.mockImplementation((body: unknown, init?: { status?: number }) => ({
+  mockNextResponseJson.mockImplementation(((body: unknown, init?: { status?: number }) => ({
     status: init?.status ?? 200,
     json: () => Promise.resolve(body),
-  }));
+  })) as unknown as typeof NextResponse.json);
 });
 
 // ─── success ─────────────────────────────────────────────────────────────────

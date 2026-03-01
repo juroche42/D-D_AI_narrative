@@ -29,7 +29,7 @@ const makeReq = (body: unknown, throwJsonError = false) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(ApiResponse.error).mockReturnValue({ status: 400 } as unknown as NextResponse);
+  vi.mocked(ApiResponse.error).mockReturnValue({ status: 400 } as unknown as ReturnType<typeof ApiResponse.error>);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

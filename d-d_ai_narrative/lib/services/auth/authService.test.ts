@@ -11,7 +11,7 @@ vi.mock('@/lib/prisma', () => ({
 
 vi.mock('bcrypt');
 
-import { registerUser } from './authService';
+import { registerUser, loginUser } from './authService';
 import bcrypt from 'bcrypt';
 import { prisma } from '@/lib/prisma';
 
@@ -130,5 +130,64 @@ describe('registerUser', () => {
       const hash2 = await realBcrypt.hash('Password1', 12);
       expect(hash1).not.toBe(hash2);
     });
+  });
+});
+
+const MOCK_USER = {
+  id: 'cuid_456',
+  username: 'ThorinHero',
+  password: '$2b$12$fakehashedpassword',
+  createdAt: new Date('2026-01-01'),
+  updatedAt: new Date('2026-01-01'),
+};
+
+describe('loginUser', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('retourne UserPublic si identifiants valides', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(MOCK_USER);
+    vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+
+    const result = await loginUser({ username: 'ThorinHero', password: 'Password1' });
+
+    expect(result).toEqual({
+      id: 'cuid_456',
+      username: 'ThorinHero',
+      createdAt: new Date('2026-01-01'),
+    });
+  });
+
+  it('ne retourne jamais le champ password dans UserPublic', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(MOCK_USER);
+    vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+
+    const result = await loginUser({ username: 'ThorinHero', password: 'Password1' });
+
+    expect(result).not.toHaveProperty('password');
+    expect(Object.keys(result)).toEqual(['id', 'username', 'createdAt']);
+  });
+
+  it('lève unauthorized (401) si utilisateur inexistant (timing-safe)', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    // bcrypt.compare est toujours appelé même si user est null (protection timing attack)
+    vi.mocked(bcrypt.compare).mockResolvedValue(false as never);
+
+    await expect(
+      loginUser({ username: 'Inconnu', password: 'Password1' }),
+    ).rejects.toMatchObject({ statusCode: 401, code: 'UNAUTHORIZED' });
+
+    // Vérifier que bcrypt.compare a bien été appelé (timing attack protection)
+    expect(bcrypt.compare).toHaveBeenCalledOnce();
+  });
+
+  it('lève unauthorized (401) si mot de passe incorrect', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(MOCK_USER);
+    vi.mocked(bcrypt.compare).mockResolvedValue(false as never);
+
+    await expect(
+      loginUser({ username: 'ThorinHero', password: 'WrongPassword' }),
+    ).rejects.toMatchObject({ statusCode: 401, code: 'UNAUTHORIZED' });
   });
 });

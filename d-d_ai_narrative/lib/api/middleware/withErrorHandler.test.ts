@@ -25,7 +25,7 @@ const makeReq = (requestId?: string) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(ApiResponse.error).mockReturnValue({ status: 500 } as unknown as NextResponse);
+  vi.mocked(ApiResponse.error).mockReturnValue({ status: 500 } as unknown as ReturnType<typeof ApiResponse.error>);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -64,7 +64,7 @@ describe('withErrorHandler', () => {
 
   it('attrape une valeur inconnue (non-Error) et retourne 500', async () => {
     const handler = vi.fn().mockImplementation(() => {
-      // eslint-disable-next-line @typescript-eslint/no-throw-literal
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw 'something unexpected';
     });
 
