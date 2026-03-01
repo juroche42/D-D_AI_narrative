@@ -21,7 +21,7 @@ export async function seedUsers(prisma: PrismaClient) {
     const plainPassword = generateRandomPassword();
     const hashedPassword = await bcrypt.hash(plainPassword, SALT_ROUNDS);
 
-    await prisma.user.upsert({
+    const user = await prisma.user.upsert({
       where: { username },
       update: {},
       create: {
@@ -30,9 +30,38 @@ export async function seedUsers(prisma: PrismaClient) {
       },
     });
 
+    await prisma.$executeRaw`
+      INSERT INTO "Profile" (
+        "id",
+        "userId",
+        "avatarUrl",
+        "bio",
+        "language",
+        "darkMode",
+        "totalGames",
+        "totalTurns",
+        "monstersDefeated",
+        "naturalCrits",
+        "updatedAt"
+      )
+      VALUES (
+        ${`profile_${user.id}`},
+        ${user.id},
+        '',
+        '',
+        'FR'::"ProfileLanguage",
+        false,
+        0,
+        0,
+        0,
+        0,
+        CURRENT_TIMESTAMP
+      )
+      ON CONFLICT ("userId") DO NOTHING
+    `;
+
     console.log(`  ✔ User "${username}" created/skipped (password: ${plainPassword})`);
   }
 
   console.log(`✅ ${USERNAMES.length} users seeded`);
 }
-
