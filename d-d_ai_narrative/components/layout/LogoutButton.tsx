@@ -27,7 +27,7 @@ export function LogoutButton({ variant = 'header' }: LogoutButtonProps) {
       <button
         onClick={handleLogout}
         disabled={isPending}
-        className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-red-500 hover:bg-red-900/20 rounded-lg transition-all disabled:opacity-50"
+        className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-black uppercase tracking-widest whitespace-nowrap text-red-500 hover:bg-red-900/20 rounded-lg transition-all disabled:opacity-50"
       >
         {isPending ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
         {isPending ? 'Déconnexion...' : 'Se déconnecter'}
