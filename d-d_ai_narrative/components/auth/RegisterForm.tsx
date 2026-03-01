@@ -25,9 +25,8 @@ const PASSWORD_CRITERIA = [
   { label: 'Un chiffre', test: (p: string) => /[0-9]/.test(p) },
 ];
 
-/** Critères de validation du mot de passe avec retour visuel en temps réel. */
-function PasswordCriteria({ password }: { password: string }) {
-  if (!password) return null;
+function PasswordCriteria({ password, visible }: { password: string; visible: boolean }) {
+  if (!visible) return null;
 
   return (
     <ul className="mt-2 space-y-1">
@@ -50,6 +49,7 @@ function PasswordCriteria({ password }: { password: string }) {
 export function RegisterForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
 
   const form = useForm<RegisterInput>({
     resolver: zodResolver(RegisterSchema),
@@ -144,9 +144,11 @@ export function RegisterForm() {
                       placeholder="••••••••"
                       autoComplete="new-password"
                       className="bg-black/40 border-white/5 rounded-xl px-4 py-3 h-auto text-gray-200 placeholder:text-gray-600 focus-visible:ring-red-600/20 focus-visible:border-red-600"
+                      onFocus={() => setPasswordFocused(true)}
+                      onBlur={() => setPasswordFocused(false)}
                     />
                   </FormControl>
-                  <PasswordCriteria password={passwordValue} />
+                  <PasswordCriteria password={passwordValue} visible={passwordFocused || !!passwordValue} />
                   <FormMessage />
                 </FormItem>
               )}
