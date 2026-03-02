@@ -20,8 +20,9 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  username String @unique
-  password String
+  username   String      @unique
+  password   String
+  characters Character[]
 }
 
 // Stocke les souvenirs narratifs du Dungeon Master IA
@@ -41,6 +42,52 @@ model Memory {
 
   // Vecteur d'embedding généré par le LLM (1536 dims pour OpenAI, 768 pour modèles open-source)
   embedding Unsupported("vector(1536)")?
+}
+
+model Character {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  name  String
+  race  Race
+  class CharClass
+
+  strength     Int
+  dexterity    Int
+  constitution Int
+  intelligence Int
+  wisdom       Int
+  charisma     Int
+
+  maxHp      Int
+  currentHp  Int
+  armorClass Int
+  xp         Int @default(0)
+  level      Int @default(1)
+
+  @@unique([userId, name])
+}
+
+enum Race {
+  HUMAN
+  ELF
+  DWARF
+  HALF_ORC
+  TIEFLING
+  HALFLING
+}
+
+enum CharClass {
+  FIGHTER
+  MAGE
+  ROGUE
+  CLERIC
+  BARD
+  RANGER
 }
 
 enum MemoryType {

@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/app/generated/prisma/client";
 import { seedUsers } from "./seeds/user.seed";
+import { seedCharacters } from "./seeds/character.seed";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -14,6 +15,7 @@ async function main() {
   console.log("🚀 Starting seed...\n");
 
   await seedUsers(prisma);
+  await seedCharacters(prisma);
 
   console.log("\n🎉 Seed completed!");
 }
