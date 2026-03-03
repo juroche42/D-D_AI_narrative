@@ -9,12 +9,12 @@ import {
   LogOut,
   Sparkles,
   User,
-  X,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
+import { EditUsernameModal } from '@/components/profile/EditUsernameModal';
+import { ChangePasswordModal } from '@/components/profile/ChangePasswordModal';
 
 type UserMeApiResponse = {
   success: boolean;
@@ -313,111 +313,29 @@ export function UserProfilePage() {
 
       </main>
 
-      {activePanel && user && (
-        <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center px-4"
-          onClick={() => setActivePanel(null)}
-        >
-          <Card
-            className={`w-full max-w-lg p-8 space-y-4 ${THEME.surface} ${THEME.borderLight}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-white/5 pb-4">
-              <h3 className="text-xl font-bold text-white uppercase italic tracking-tight">
-                {activePanel === 'username' ? 'Modifier le pseudo' : 'Changement mot de passe'}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setActivePanel(null)}
-                className="text-gray-400 hover:text-white transition-colors"
-                aria-label="Fermer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      <EditUsernameModal
+        isOpen={activePanel === 'username' && !!user}
+        username={username}
+        loading={savingProfile}
+        onClose={() => setActivePanel(null)}
+        onUsernameChange={setUsername}
+        onSave={saveProfile}
+        buttonClassName={formButtonClass}
+      />
 
-            {activePanel === 'username' ? (
-              <>
-                <FormField label="Pseudo">
-                  <Input
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="bg-black/40 border-white/10"
-                  />
-                </FormField>
-
-                <Button
-                  onClick={saveProfile}
-                  disabled={savingProfile}
-                  className={`w-full ${formButtonClass}`}
-                >
-                  {savingProfile ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Sauvegarde...
-                    </>
-                  ) : (
-                    'Enregistrer le pseudo'
-                  )}
-                </Button>
-              </>
-            ) : (
-              <>
-                <FormField label="Mot de passe actuel">
-                  <Input
-                    type="password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="bg-black/40 border-white/10"
-                  />
-                </FormField>
-
-                <FormField label="Nouveau mot de passe">
-                  <Input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="bg-black/40 border-white/10"
-                  />
-                </FormField>
-
-                <FormField label="Confirmation">
-                  <Input
-                    type="password"
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    className="bg-black/40 border-white/10"
-                  />
-                </FormField>
-
-                <Button
-                  onClick={savePassword}
-                  disabled={savingPassword}
-                  className={`w-full ${formButtonClass}`}
-                >
-                  {savingPassword ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Sauvegarde...
-                    </>
-                  ) : (
-                    'Mettre à jour le mot de passe'
-                  )}
-                </Button>
-              </>
-            )}
-          </Card>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FormField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1.5 w-full">
-      <label className="text-xs font-black uppercase tracking-widest text-gray-500 ml-1">{label}</label>
-      {children}
+      <ChangePasswordModal
+        isOpen={activePanel === 'password' && !!user}
+        currentPassword={currentPassword}
+        newPassword={newPassword}
+        confirmNewPassword={confirmNewPassword}
+        loading={savingPassword}
+        onClose={() => setActivePanel(null)}
+        onCurrentPasswordChange={setCurrentPassword}
+        onNewPasswordChange={setNewPassword}
+        onConfirmNewPasswordChange={setConfirmNewPassword}
+        onSave={savePassword}
+        buttonClassName={formButtonClass}
+      />
     </div>
   );
 }
