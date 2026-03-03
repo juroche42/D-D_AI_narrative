@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,12 @@ interface ChangePasswordModalProps {
   buttonClassName: string;
 }
 
+const PASSWORD_CRITERIA = [
+  { label: '8 caractères minimum', test: (p: string) => p.length >= 8 },
+  { label: 'Une majuscule', test: (p: string) => /[A-Z]/.test(p) },
+  { label: 'Un chiffre', test: (p: string) => /[0-9]/.test(p) },
+];
+
 export function ChangePasswordModal({
   isOpen,
   currentPassword,
@@ -33,6 +40,8 @@ export function ChangePasswordModal({
   onSave,
   buttonClassName,
 }: ChangePasswordModalProps) {
+  const [passwordFocused, setPasswordFocused] = useState(false);
+
   if (!isOpen) return null;
 
   return (
@@ -72,7 +81,13 @@ export function ChangePasswordModal({
             type="password"
             value={newPassword}
             onChange={(e) => onNewPasswordChange(e.target.value)}
+            onFocus={() => setPasswordFocused(true)}
+            onBlur={() => setPasswordFocused(false)}
             className="bg-black/40 border-white/10"
+          />
+          <PasswordCriteria
+            password={newPassword}
+            visible={passwordFocused || !!newPassword}
           />
         </Field>
 
@@ -97,6 +112,27 @@ export function ChangePasswordModal({
         </Button>
       </Card>
     </div>
+  );
+}
+
+function PasswordCriteria({ password, visible }: { password: string; visible: boolean }) {
+  if (!visible) return null;
+
+  return (
+    <ul className="mt-2 space-y-1">
+      {PASSWORD_CRITERIA.map(({ label, test }) => {
+        const ok = test(password);
+        return (
+          <li
+            key={label}
+            className={`flex items-center gap-1.5 text-[11px] font-medium transition-colors ${ok ? 'text-green-500' : 'text-gray-500'}`}
+          >
+            <span aria-hidden="true">{ok ? '✓' : '○'}</span>
+            {label}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

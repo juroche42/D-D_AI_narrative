@@ -1,16 +1,24 @@
 import type { NextRequest } from 'next/server';
 import { unauthorized } from '@/lib/api/errors';
+import { auth } from '@/lib/auth';
 
 /**
- * Temporary auth extractor used until NextAuth is wired.
- * We rely on X-User-Id passed by the client/tests.
+ * Primary source: NextAuth session.
+ * Fallback: X-User-Id header for existing API tests/dev flows.
  */
-export function requireCurrentUserId(req: NextRequest): string {
-  const userId = req.headers.get('x-user-id');
+export async function requireCurrentUserId(req: NextRequest): Promise<string> {
+  const session = await auth();
+  const sessionUserId = session?.user?.id;
 
-  if (!userId) {
-    throw unauthorized('Missing authentication context (x-user-id header)');
+  if (sessionUserId) {
+    return sessionUserId;
   }
 
-  return userId;
+  const headerUserId = req.headers.get('x-user-id');
+
+  if (headerUserId) {
+    return headerUserId;
+  }
+
+  throw unauthorized('Missing authentication context');
 }

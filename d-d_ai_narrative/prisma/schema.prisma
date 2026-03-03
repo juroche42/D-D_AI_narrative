@@ -23,8 +23,6 @@ model User {
   username   String      @unique
   password   String
   characters Character[]
-  username String @unique
-  password String
   profile  Profile?
 }
 

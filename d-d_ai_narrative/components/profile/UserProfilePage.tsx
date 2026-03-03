@@ -1,12 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   AlertCircle,
   ChevronRight,
   Loader2,
-  LogOut,
   Sparkles,
   User,
 } from 'lucide-react';
@@ -15,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { EditUsernameModal } from '@/components/profile/EditUsernameModal';
 import { ChangePasswordModal } from '@/components/profile/ChangePasswordModal';
+import { LogoutButton } from '@/components/layout/LogoutButton';
 
 type UserMeApiResponse = {
   success: boolean;
@@ -50,9 +49,6 @@ const THEME = {
 };
 
 export function UserProfilePage() {
-  const router = useRouter();
-
-  const [userId, setUserId] = useState<string | null>(null);
   const [user, setUser] = useState<UserMeApiResponse['data']>(null);
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -83,17 +79,12 @@ export function UserProfilePage() {
     'bg-transparent border border-white/20 hover:bg-white/5 text-gray-200 font-bold uppercase text-sm tracking-widest rounded-lg px-6 py-2.5 h-auto';
 
   const fetchProfile = useCallback(
-    async (uid: string) => {
+    async () => {
       setLoading(true);
       setError(null);
 
       try {
-        const res = await fetch('/api/users/me', {
-          headers: {
-            'Content-Type': 'application/json',
-            'x-user-id': uid,
-          },
-        });
+        const res = await fetch('/api/users/me');
         const json = (await res.json()) as UserMeApiResponse;
 
         if (!res.ok || !json.success || !json.data) {
@@ -114,20 +105,10 @@ export function UserProfilePage() {
   );
 
   useEffect(() => {
-    const uid = localStorage.getItem('dev_user_id');
-    if (!uid) {
-      setLoading(false);
-      setError('Aucune session utilisateur détectée.');
-      return;
-    }
-
-    setUserId(uid);
-    void fetchProfile(uid);
+    void fetchProfile();
   }, [fetchProfile]);
 
   const saveProfile = async () => {
-    if (!userId) return;
-
     setSavingProfile(true);
     setError(null);
     setSuccess(null);
@@ -137,7 +118,6 @@ export function UserProfilePage() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': userId,
         },
         body: JSON.stringify({ username }),
       });
@@ -158,8 +138,6 @@ export function UserProfilePage() {
   };
 
   const savePassword = async () => {
-    if (!userId) return;
-
     setSavingPassword(true);
     setError(null);
     setSuccess(null);
@@ -169,7 +147,6 @@ export function UserProfilePage() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': userId,
         },
         body: JSON.stringify({ currentPassword, newPassword, confirmNewPassword }),
       });
@@ -190,11 +167,6 @@ export function UserProfilePage() {
     } finally {
       setSavingPassword(false);
     }
-  };
-
-  const logout = () => {
-    localStorage.removeItem('dev_user_id');
-    router.push('/register');
   };
 
   return (
@@ -234,13 +206,7 @@ export function UserProfilePage() {
                   >
                     Changer mot de passe
                   </Button>
-                  <Button
-                    className={actionButtonClass}
-                    onClick={logout}
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Déconnexion
-                  </Button>
+                  <LogoutButton variant="profile" />
                 </div>
               </>
             )}

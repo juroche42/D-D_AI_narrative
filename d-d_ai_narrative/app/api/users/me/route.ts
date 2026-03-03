@@ -33,7 +33,7 @@ import { UpdateUserMeSchema, type UpdateUserMeInput } from '@/lib/validations/us
  *               $ref: '#/components/schemas/ApiError'
  */
 export const GET = withErrorHandler(async (req: NextRequest): Promise<NextResponse> => {
-  const userId = requireCurrentUserId(req);
+  const userId = await requireCurrentUserId(req);
   const user = await getUserMe(userId);
 
   return ApiResponse.success(user, 'Profil utilisateur récupéré');
@@ -105,7 +105,7 @@ export const PATCH = withErrorHandler(
   withValidation(
     UpdateUserMeSchema,
     async (req: NextRequest, { data }: { data: UpdateUserMeInput }): Promise<NextResponse> => {
-      const userId = requireCurrentUserId(req);
+      const userId = await requireCurrentUserId(req);
       const updated = await updateUserMe(userId, data);
       return ApiResponse.success(updated, 'Profil utilisateur mis à jour');
     },
