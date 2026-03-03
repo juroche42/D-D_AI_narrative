@@ -49,9 +49,9 @@ describe('LogoutButton', () => {
   });
 
   describe('variant profile', () => {
-    it('affiche le texte "Se déconnecter"', () => {
+    it('affiche le texte "Déconnexion"', () => {
       render(<LogoutButton variant="profile" />);
-      expect(screen.getByText(/se déconnecter/i)).toBeInTheDocument();
+      expect(screen.getByText(/déconnexion/i)).toBeInTheDocument();
     });
 
     it('appelle logoutAction au clic', () => {
