@@ -47,4 +47,17 @@ describe('LogoutButton', () => {
       expect(logoutAction).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('variant profile', () => {
+    it('affiche le texte "Déconnexion"', () => {
+      render(<LogoutButton variant="profile" />);
+      expect(screen.getByText(/déconnexion/i)).toBeInTheDocument();
+    });
+
+    it('appelle logoutAction au clic', () => {
+      render(<LogoutButton variant="profile" />);
+      fireEvent.click(screen.getByRole('button'));
+      expect(logoutAction).toHaveBeenCalledTimes(1);
+    });
+  });
 });

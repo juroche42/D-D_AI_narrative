@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
+    $executeRaw: vi.fn(),
     user: {
       findUnique: vi.fn(),
       create: vi.fn(),
@@ -31,6 +32,7 @@ describe('registerUser', () => {
         createdAt: new Date('2026-01-01'),
         updatedAt: new Date('2026-01-01'),
       });
+      vi.mocked(prisma.$executeRaw).mockResolvedValue(1 as never);
 
       const result = await registerUser({ username: 'TestHero', password: 'Password1' });
 
@@ -52,6 +54,7 @@ describe('registerUser', () => {
         createdAt: new Date('2026-01-01'),
         updatedAt: new Date('2026-01-01'),
       });
+      vi.mocked(prisma.$executeRaw).mockResolvedValue(1 as never);
 
       const result = await registerUser({ username: 'Hero', password: 'Password1' });
 
@@ -100,6 +103,7 @@ describe('registerUser', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
+      vi.mocked(prisma.$executeRaw).mockResolvedValue(1 as never);
 
       await registerUser({ username: 'Hero', password: 'Password1' });
 
@@ -116,6 +120,7 @@ describe('registerUser', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
+      vi.mocked(prisma.$executeRaw).mockResolvedValue(1 as never);
 
       await registerUser({ username: 'Hero', password: 'Password1' });
 

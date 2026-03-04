@@ -53,6 +53,7 @@ const options: swaggerJSDoc.Options = {
     tags: [
       { name: 'health', description: 'Healthcheck et statut du service' },
       { name: 'auth', description: 'Authentification et gestion de session' },
+      { name: 'users', description: 'Profil et préférences utilisateur' },
       { name: 'rooms', description: 'Gestion des salles de jeu' },
       { name: 'characters', description: 'Gestion des personnages D&D' },
     ],

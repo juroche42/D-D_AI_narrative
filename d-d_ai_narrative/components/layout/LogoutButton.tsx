@@ -6,7 +6,7 @@ import { logoutAction } from '@/app/(auth)/logout/actions';
 
 interface LogoutButtonProps {
   /** Variante visuelle selon le contexte d'affichage */
-  variant?: 'header' | 'menu-item';
+  variant?: 'header' | 'menu-item' | 'profile';
 }
 
 export function LogoutButton({ variant = 'header' }: LogoutButtonProps) {
@@ -31,6 +31,19 @@ export function LogoutButton({ variant = 'header' }: LogoutButtonProps) {
       >
         {isPending ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
         {isPending ? 'Déconnexion...' : 'Se déconnecter'}
+      </button>
+    );
+  }
+
+  if (variant === 'profile') {
+    return (
+      <button
+        onClick={handleLogout}
+        disabled={isPending}
+        className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg border border-white/20 hover:bg-white/5 text-gray-200 font-bold uppercase text-sm tracking-widest transition-all disabled:opacity-50"
+      >
+        {isPending ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />}
+        {isPending ? 'Déconnexion...' : 'Déconnexion'}
       </button>
     );
   }

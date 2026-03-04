@@ -35,6 +35,37 @@ export async function registerUser(
     },
   });
 
+  // Keep profile creation compatible with stale generated Prisma client typings.
+  await prisma.$executeRaw`
+    INSERT INTO "Profile" (
+      "id",
+      "userId",
+      "avatarUrl",
+      "bio",
+      "language",
+      "darkMode",
+      "totalGames",
+      "totalTurns",
+      "monstersDefeated",
+      "naturalCrits",
+      "updatedAt"
+    )
+    VALUES (
+      ${`profile_${user.id}`},
+      ${user.id},
+      '',
+      '',
+      'FR'::"ProfileLanguage",
+      false,
+      0,
+      0,
+      0,
+      0,
+      CURRENT_TIMESTAMP
+    )
+    ON CONFLICT ("userId") DO NOTHING
+  `;
+
   return {
     id: user.id,
     username: user.username,
