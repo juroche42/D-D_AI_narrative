@@ -25,6 +25,16 @@ export function conflict(message: string): AppError {
   return new AppError(message, ErrorCode.CONFLICT, 409);
 }
 
+/** 410 Gone — ressource définitivement indisponible (ex: salon démarré ou terminé). */
+export function gone(message: string): AppError {
+  return new AppError(message, ErrorCode.GONE, 410);
+}
+
+/** 422 Unprocessable Entity — requête valide mais impossible à traiter (ex: salon complet). */
+export function unprocessable(message: string): AppError {
+  return new AppError(message, ErrorCode.UNPROCESSABLE_ENTITY, 422);
+}
+
 /** 501 Not Implemented — endpoint prévu mais pas encore développé. */
 export function notImplemented(message = 'Not implemented yet'): AppError {
   return new AppError(message, ErrorCode.NOT_IMPLEMENTED, 501);

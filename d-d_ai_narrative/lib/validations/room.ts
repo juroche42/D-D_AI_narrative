@@ -12,3 +12,13 @@ export type CreateRoom = z.infer<typeof CreateRoomSchema>;
 export const UpdateRoomSchema = CreateRoomSchema.partial();
 
 export type UpdateRoom = z.infer<typeof UpdateRoomSchema>;
+
+export const JoinRoomSchema = z.object({
+  code: z
+    .string()
+    .min(1, 'Le code est requis')
+    .length(6, 'Le code doit faire exactement 6 caractères')
+    .transform((v) => v.toUpperCase().trim()),
+});
+
+export type JoinRoomInput = z.infer<typeof JoinRoomSchema>;
