@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CreateRoomSchema, UpdateRoomSchema } from './room';
+import { CreateRoomSchema, UpdateRoomSchema, JoinRoomSchema } from './room';
 
 const VALID_ROOM = {
   name: 'Donjon des Ombres',
@@ -62,6 +62,34 @@ describe('UpdateRoomSchema', () => {
 
   it('partial update invalide (name trop court) → erreur', () => {
     const result = UpdateRoomSchema.safeParse({ name: 'ab' });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('JoinRoomSchema', () => {
+  it('code valide à 6 caractères → succès', () => {
+    const result = JoinRoomSchema.safeParse({ code: 'ABC123' });
+    expect(result.success).toBe(true);
+  });
+
+  it('transforme en uppercase', () => {
+    const result = JoinRoomSchema.safeParse({ code: 'abc123' });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.code).toBe('ABC123');
+  });
+
+  it('code trop court → erreur', () => {
+    const result = JoinRoomSchema.safeParse({ code: 'AB123' });
+    expect(result.success).toBe(false);
+  });
+
+  it('code trop long → erreur', () => {
+    const result = JoinRoomSchema.safeParse({ code: 'ABC1234' });
+    expect(result.success).toBe(false);
+  });
+
+  it('code vide → erreur', () => {
+    const result = JoinRoomSchema.safeParse({ code: '' });
     expect(result.success).toBe(false);
   });
 });

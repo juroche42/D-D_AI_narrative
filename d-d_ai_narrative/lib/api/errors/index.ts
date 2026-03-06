@@ -6,6 +6,8 @@ export {
   forbidden,
   notFound,
   conflict,
+  gone,
+  unprocessable,
   notImplemented,
   internalServer,
 } from './HttpError';
