@@ -14,7 +14,6 @@ export const CreateCharacterSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(30, 'Name must be at most 30 characters'),
   race: DndRaceSchema,
   class: DndClassSchema,
-  backstory: z.string().max(2000, 'Backstory must be at most 2000 characters').optional(),
   stats: z.object({
     strength: StatSchema,
     dexterity: StatSchema,
