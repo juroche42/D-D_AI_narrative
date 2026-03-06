@@ -1,9 +1,11 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
+import { CharacterStep } from "@/components/character/CharacterStep";
+import { RACE_DEFINITIONS } from "@/lib/constants/races";
 
 export const metadata: Metadata = {
-  title: 'Créer un personnage',
+  title: 'Votre incarnation - D&D AI Narrative',
 };
 
 export default async function CreateCharacterPage() {
@@ -11,8 +13,11 @@ export default async function CreateCharacterPage() {
   if (!session?.user) redirect('/login');
 
   return <>
-      <h1 className="text-3xl font-bold mb-6">Créer un personnage</h1>
+    <h1 className="text-3xl font-bold mb-6 uppercase italic text-center">Votre incarnation</h1>
+    <CharacterStep races={RACE_DEFINITIONS} />
   </>;
 }
+
+
 
 
