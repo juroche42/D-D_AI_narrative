@@ -1,16 +1,7 @@
 import { z } from 'zod';
+import { RACE_VALUES } from '@/lib/constants/races';
 
-export const DndRaceSchema = z.enum([
-  'Human',
-  'Elf',
-  'Dwarf',
-  'Halfling',
-  'Gnome',
-  'Half-Elf',
-  'Half-Orc',
-  'Tiefling',
-  'Dragonborn',
-]);
+export const DndRaceSchema = z.enum(RACE_VALUES);
 
 export type DndRace = z.infer<typeof DndRaceSchema>;
 
