@@ -22,9 +22,10 @@ export default async function JoinViaLinkPage({ params }: Props) {
 
   try {
     await joinRoom(code, session.user.id);
-    redirect(`/lobby/${code.toUpperCase()}`);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Impossible de rejoindre ce salon';
     redirect(`/lobby?error=${encodeURIComponent(message)}`);
   }
+
+  redirect(`/lobby/${code.toUpperCase()}`);
 }
