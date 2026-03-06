@@ -1,7 +1,7 @@
-import { conflict } from '@/lib/api/errors';
-import { prisma } from '@/lib/prisma';
-import type { CreateCharacter } from '@/lib/validations/character';
-import type { Character } from '@/app/generated/prisma/client';
+import {conflict} from '@/lib/api/errors';
+import {prisma} from '@/lib/prisma';
+import type {CreateCharacter} from '@/lib/validations/character';
+import type {Character} from '@/app/generated/prisma/client';
 
 export type CharacterResponse = Omit<Character, 'userId'> & { userId: string };
 
@@ -49,26 +49,24 @@ export async function createCharacter(
   const maxHp = computeMaxHp(data.class, data.stats.constitution);
   const armorClass = computeArmorClass(data.stats.dexterity);
 
-  const character = await prisma.character.create({
-    data: {
-      userId,
-      name: data.name,
-      race: data.race,
-      class: data.class,
-      strength: data.stats.strength,
-      dexterity: data.stats.dexterity,
-      constitution: data.stats.constitution,
-      intelligence: data.stats.intelligence,
-      wisdom: data.stats.wisdom,
-      charisma: data.stats.charisma,
-      maxHp,
-      currentHp: maxHp,
-      armorClass,
-      xp: 0,
-      level: 1,
-    },
+  return prisma.character.create({
+      data: {
+          userId,
+          name: data.name,
+          race: data.race,
+          class: data.class,
+          strength: data.stats.strength,
+          dexterity: data.stats.dexterity,
+          constitution: data.stats.constitution,
+          intelligence: data.stats.intelligence,
+          wisdom: data.stats.wisdom,
+          charisma: data.stats.charisma,
+          maxHp,
+          currentHp: maxHp,
+          armorClass,
+          xp: 0,
+          level: 1,
+      },
   });
-
-  return character;
 }
 
