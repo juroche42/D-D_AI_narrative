@@ -1,25 +1,11 @@
 import { z } from 'zod';
 import { RACE_VALUES } from '@/lib/constants/races';
+import { CLASS_VALUES } from '@/lib/constants/classes';
 
 export const DndRaceSchema = z.enum(RACE_VALUES);
-
 export type DndRace = z.infer<typeof DndRaceSchema>;
 
-export const DndClassSchema = z.enum([
-  'Barbarian',
-  'Bard',
-  'Cleric',
-  'Druid',
-  'Fighter',
-  'Monk',
-  'Paladin',
-  'Ranger',
-  'Rogue',
-  'Sorcerer',
-  'Warlock',
-  'Wizard',
-]);
-
+export const DndClassSchema = z.enum(CLASS_VALUES);
 export type DndClass = z.infer<typeof DndClassSchema>;
 
 const StatSchema = z.number().int().min(1).max(20);
