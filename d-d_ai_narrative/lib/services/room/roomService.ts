@@ -3,6 +3,7 @@ import { customAlphabet } from 'nanoid';
 import { prisma } from '@/lib/prisma';
 import { RoomStatus } from '@/app/generated/prisma/enums';
 import { conflict, gone, notFound, unprocessable } from '@/lib/api/errors';
+import { broadcastPlayerUpdate } from '@/lib/sse/sseService';
 
 const generateCode = customAlphabet('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 6);
 
@@ -123,6 +124,8 @@ export async function joinRoom(code: string, userId: string): Promise<RoomPublic
   await prisma.roomPlayer.create({
     data: { roomId: room.id, userId },
   });
+
+  await broadcastPlayerUpdate(code.toUpperCase(), 'player_joined');
 
   return toRoomPublic(room);
 }

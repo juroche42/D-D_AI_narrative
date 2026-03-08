@@ -22,6 +22,10 @@ vi.mock('nanoid', () => ({
 
 vi.mock('server-only', () => ({}));
 
+vi.mock('@/lib/sse/sseService', () => ({
+  broadcastPlayerUpdate: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { createRoom, getRoomByCode, joinRoom } from './roomService';
 import { prisma } from '@/lib/prisma';
 
