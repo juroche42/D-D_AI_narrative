@@ -8,6 +8,7 @@ vi.mock('@/lib/prisma', () => ({
       findUnique: vi.fn(),
       create: vi.fn(),
       delete: vi.fn(),
+      update: vi.fn(),
     },
     room: {
       findUnique: vi.fn(),
@@ -33,7 +34,7 @@ vi.mock('@/lib/sse/sseManager', () => ({
   broadcastToRoom: vi.fn(),
 }));
 
-import { createRoom, getRoomByCode, joinRoom, leaveRoom, updateRoomStatus } from './roomService';
+import { createRoom, getRoomByCode, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady } from './roomService';
 import { prisma } from '@/lib/prisma';
 
 const MOCK_ROOM = {
@@ -326,5 +327,75 @@ describe('updateRoomStatus', () => {
 
     await expect(updateRoomStatus('XXXXXX', 'user_cuid_1', 'IN_PROGRESS'))
       .rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+const MOCK_PLAYER_NOT_HOST = {
+  id: 'rp_2',
+  userId: 'user_2',
+  roomId: 'room_cuid_1',
+  isReady: false,
+  joinedAt: new Date(),
+  characterId: null,
+};
+
+describe('togglePlayerReady', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('bascule isReady false → true pour un joueur non-host', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      ...MOCK_ROOM,
+      players: [MOCK_PLAYER_NOT_HOST],
+    } as never);
+    vi.mocked(prisma.roomPlayer.update).mockResolvedValue({
+      ...MOCK_PLAYER_NOT_HOST, isReady: true,
+    } as never);
+
+    const result = await togglePlayerReady('ABC123', 'user_2');
+    expect(result).toBe(true);
+    expect(prisma.roomPlayer.update).toHaveBeenCalledWith({
+      where: { id: 'rp_2' },
+      data: { isReady: true },
+    });
+  });
+
+  it('bascule isReady true → false (unready)', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      ...MOCK_ROOM,
+      players: [{ ...MOCK_PLAYER_NOT_HOST, isReady: true }],
+    } as never);
+    vi.mocked(prisma.roomPlayer.update).mockResolvedValue({
+      ...MOCK_PLAYER_NOT_HOST, isReady: false,
+    } as never);
+
+    const result = await togglePlayerReady('ABC123', 'user_2');
+    expect(result).toBe(false);
+  });
+
+  it('lève 403 si le host tente de se marquer prêt', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      ...MOCK_ROOM,
+      players: [{ id: 'rp_host', userId: 'user_cuid_1', isReady: false, roomId: 'room_cuid_1', joinedAt: new Date(), characterId: null }],
+    } as never);
+
+    await expect(togglePlayerReady('ABC123', 'user_cuid_1'))
+      .rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('lève 404 si le salon est inconnu', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue(null);
+
+    await expect(togglePlayerReady('XXXXXX', 'user_2'))
+      .rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("lève 409 si le salon n'est pas en WAITING", async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      ...MOCK_ROOM, status: 'IN_PROGRESS',
+      players: [MOCK_PLAYER_NOT_HOST],
+    } as never);
+
+    await expect(togglePlayerReady('ABC123', 'user_2'))
+      .rejects.toMatchObject({ statusCode: 409 });
   });
 });

@@ -93,9 +93,20 @@ function PlayerCard({ player, isCurrentUser }: { player: SSEPlayer; isCurrentUse
             </p>
           </div>
         </div>
-        <Badge className="text-[9px] font-black uppercase bg-white/5 text-gray-500 border border-white/10 hover:bg-white/5">
-          En ligne
-        </Badge>
+        <div className="flex items-center gap-2">
+          {!player.isHost && (
+            <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${
+              player.isReady
+                ? 'bg-green-950/40 border-green-900/50 text-green-400'
+                : 'bg-white/5 border-white/10 text-gray-600'
+            }`}>
+              {player.isReady ? '✓ Prêt' : 'Attente'}
+            </span>
+          )}
+          <Badge className="text-[9px] font-black uppercase bg-white/5 text-gray-500 border border-white/10 hover:bg-white/5">
+            En ligne
+          </Badge>
+        </div>
       </div>
 
       <div className={`flex items-center gap-3 p-3 bg-black/20 rounded-lg border border-dashed ${

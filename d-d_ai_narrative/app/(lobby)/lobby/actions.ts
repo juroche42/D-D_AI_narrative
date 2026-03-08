@@ -1,7 +1,7 @@
 'use server';
 
 import { auth } from '@/lib/auth';
-import { createRoom, joinRoom, leaveRoom, updateRoomStatus } from '@/lib/services/room';
+import { createRoom, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady } from '@/lib/services/room';
 import type { RoomPublic } from '@/lib/services/room';
 import { JoinRoomSchema } from '@/lib/validations/room';
 import { redirect } from 'next/navigation';
@@ -69,6 +69,27 @@ export async function startGameAction(roomCode: string): Promise<StartGameResult
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Impossible de démarrer la partie',
+    };
+  }
+}
+
+export interface ToggleReadyResult {
+  success: boolean;
+  isReady?: boolean;
+  error?: string;
+}
+
+export async function toggleReadyAction(roomCode: string): Promise<ToggleReadyResult> {
+  const session = await auth();
+  if (!session?.user) redirect('/login');
+
+  try {
+    const isReady = await togglePlayerReady(roomCode, session.user.id);
+    return { success: true, isReady };
+  } catch (error: unknown) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Impossible de changer votre statut',
     };
   }
 }

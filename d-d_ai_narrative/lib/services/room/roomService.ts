@@ -220,6 +220,40 @@ export async function updateRoomStatus(
   return toRoomPublic(updated);
 }
 
+/**
+ * Bascule l'état "prêt" d'un joueur non-host.
+ * @throws AppError 404 si le salon ou la membership est introuvable
+ * @throws AppError 403 si l'appelant est le host (le host ne se marque pas prêt)
+ * @throws AppError 409 si le salon n'est pas en WAITING
+ */
+export async function togglePlayerReady(
+  roomCode: string,
+  userId: string,
+): Promise<boolean> {
+  const code = roomCode.toUpperCase();
+
+  const room = await prisma.room.findUnique({
+    where: { code },
+    include: { players: { where: { userId } } },
+  });
+
+  if (!room) throw notFound('Salon introuvable');
+
+  const membership = room.players[0];
+  if (!membership) throw notFound("Vous n'êtes pas dans ce salon");
+  if (room.hostId === userId) throw forbidden("Le host n'a pas besoin de se marquer prêt");
+  if (room.status !== RoomStatus.WAITING) throw conflict('Impossible de changer son état hors de la phase de préparation');
+
+  const updated = await prisma.roomPlayer.update({
+    where: { id: membership.id },
+    data: { isReady: !membership.isReady },
+  });
+
+  await broadcastPlayerUpdate(code, 'player_updated');
+
+  return updated.isReady;
+}
+
 function toRoomPublic(room: {
   id: string;
   code: string;
