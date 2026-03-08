@@ -1,7 +1,7 @@
 'use client';
 
 import { Crown, User, AlertCircle, Wifi, WifiOff, Loader2 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+
 import { useRoomPlayers } from '@/hooks/useRoomPlayers';
 import type { SSEPlayer } from '@/lib/sse/sseManager';
 
@@ -70,53 +70,45 @@ export function PlayerList({ roomCode, currentUserId, maxPlayers }: PlayerListPr
 
 function PlayerCard({ player, isCurrentUser }: { player: SSEPlayer; isCurrentUser: boolean }) {
   return (
-    <div className="p-4 bg-white/5 rounded-xl border border-white/5 space-y-3 animate-in fade-in duration-300">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-lg flex items-center justify-center border shadow-lg ${
-            player.isHost ? 'bg-red-900/40 border-red-900/20' : 'bg-white/5 border-white/10'
-          }`}>
-            {player.isHost
-              ? <Crown size={18} className="text-red-500" />
-              : <User size={18} className="text-gray-500" />
-            }
-          </div>
-          <div>
-            <p className="text-sm font-bold text-white">
-              {player.username}
-              {isCurrentUser && (
-                <span className="text-gray-500 font-normal text-xs ml-1">(Vous)</span>
-              )}
-            </p>
-            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
-              {player.isHost ? 'Host' : 'Joueur'}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {!player.isHost && (
-            <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${
-              player.isReady
-                ? 'bg-green-950/40 border-green-900/50 text-green-400'
-                : 'bg-white/5 border-white/10 text-gray-600'
-            }`}>
-              {player.isReady ? '✓ Prêt' : 'Attente'}
-            </span>
-          )}
-          <Badge className="text-[9px] font-black uppercase bg-white/5 text-gray-500 border border-white/10 hover:bg-white/5">
-            En ligne
-          </Badge>
-        </div>
+    <div className="px-4 py-3 bg-white/5 rounded-xl border border-white/5 flex items-center gap-4 animate-in fade-in duration-300">
+
+      {/* Avatar */}
+      <div className={`w-9 h-9 shrink-0 rounded-lg flex items-center justify-center border shadow-lg ${
+        player.isHost ? 'bg-red-900/40 border-red-900/20' : 'bg-white/5 border-white/10'
+      }`}>
+        {player.isHost
+          ? <Crown size={16} className="text-red-500" />
+          : <User size={16} className="text-gray-500" />
+        }
       </div>
 
-      <div className={`flex items-center gap-3 p-3 bg-black/20 rounded-lg border border-dashed ${
-        player.characterId ? 'border-green-900/30 text-green-600' : 'border-white/10 text-gray-600'
-      }`}>
-        <AlertCircle size={14} />
-        <p className="text-[10px] font-bold uppercase tracking-wide italic">
-          {player.characterId ? 'Héros choisi' : 'Destin non scellé'}
+      {/* Nom + rôle */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-white truncate leading-tight">
+          {player.username}
+          {isCurrentUser && <span className="text-gray-600 font-normal text-xs ml-1.5">(Vous)</span>}
+        </p>
+        <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest leading-tight mt-0.5">
+          {player.isHost ? 'Host' : 'Joueur'}
         </p>
       </div>
+
+      {/* Badges */}
+      <div className="flex items-center gap-2 shrink-0">
+        {!player.isHost && (
+          <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${
+            player.isReady
+              ? 'bg-green-950/40 border-green-900/50 text-green-400'
+              : 'bg-white/5 border-white/10 text-gray-600'
+          }`}>
+            {player.isReady ? '✓ Prêt' : 'Attente'}
+          </span>
+        )}
+        <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border bg-white/5 border-white/10 text-gray-600">
+          En ligne
+        </span>
+      </div>
+
     </div>
   );
 }
