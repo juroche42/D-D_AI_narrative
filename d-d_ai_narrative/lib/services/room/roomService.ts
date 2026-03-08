@@ -2,7 +2,7 @@ import 'server-only';
 import { customAlphabet } from 'nanoid';
 import { prisma } from '@/lib/prisma';
 import { RoomStatus } from '@/app/generated/prisma/enums';
-import { conflict, gone, notFound, unprocessable } from '@/lib/api/errors';
+import { conflict, forbidden, gone, notFound, unprocessable } from '@/lib/api/errors';
 import { broadcastPlayerUpdate } from '@/lib/sse/sseService';
 import { broadcastToRoom } from '@/lib/sse/sseManager';
 
@@ -155,7 +155,7 @@ export async function leaveRoom(roomCode: string, userId: string): Promise<void>
 
   if (isHost && otherPlayers.length === 0) {
     await prisma.room.delete({ where: { id: room.id } });
-    broadcastToRoom(code, { type: 'room_closed', roomCode: code, players: [], timestamp: Date.now() });
+    broadcastToRoom(code, { type: 'room_closed', roomCode: code, players: [], status: '', timestamp: Date.now() });
     return;
   }
 
@@ -171,6 +171,53 @@ export async function leaveRoom(roomCode: string, userId: string): Promise<void>
 
   await prisma.roomPlayer.delete({ where: { id: membership.id } });
   await broadcastPlayerUpdate(code, 'player_left');
+}
+
+/**
+ * Met à jour le statut d'un salon. Seul le host peut déclencher la transition.
+ * Transitions autorisées : WAITING → IN_PROGRESS, IN_PROGRESS → FINISHED
+ * @throws AppError 404 si le salon n'existe pas
+ * @throws AppError 403 si l'utilisateur n'est pas le host
+ * @throws AppError 409 si la transition est invalide
+ * @throws AppError 422 si moins de 2 joueurs pour passer en IN_PROGRESS
+ */
+export async function updateRoomStatus(
+  roomCode: string,
+  userId: string,
+  newStatus: 'IN_PROGRESS' | 'FINISHED',
+): Promise<RoomPublic> {
+  const code = roomCode.toUpperCase();
+
+  const room = await prisma.room.findUnique({
+    where: { code },
+    include: { _count: { select: { players: true } } },
+  });
+
+  if (!room) throw notFound('Salon introuvable');
+  if (room.hostId !== userId) throw forbidden("Seul le host peut modifier l'état du salon");
+
+  const validTransitions: Record<string, string[]> = {
+    WAITING: ['IN_PROGRESS'],
+    IN_PROGRESS: ['FINISHED'],
+    FINISHED: [],
+  };
+
+  if (!validTransitions[room.status]?.includes(newStatus)) {
+    throw conflict(`Transition invalide : ${room.status} → ${newStatus}`);
+  }
+
+  if (newStatus === 'IN_PROGRESS' && room._count.players < 2) {
+    throw unprocessable('Il faut au moins 2 joueurs pour démarrer la partie');
+  }
+
+  const updated = await prisma.room.update({
+    where: { id: room.id },
+    data: { status: newStatus as RoomStatus },
+  });
+
+  await broadcastPlayerUpdate(code, 'room_status_changed');
+
+  return toRoomPublic(updated);
 }
 
 function toRoomPublic(room: {

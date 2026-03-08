@@ -27,7 +27,7 @@ describe('sseManager', () => {
     registerClient('ABC123', ctrl1);
     registerClient('XYZ999', ctrl2);
 
-    broadcastToRoom('ABC123', { type: 'player_joined', roomCode: 'ABC123', players: [], timestamp: 0 });
+    broadcastToRoom('ABC123', { type: 'player_joined', roomCode: 'ABC123', players: [], status: 'WAITING', timestamp: 0 });
 
     expect(ctrl1.enqueue).toHaveBeenCalledOnce();
     expect(ctrl2.enqueue).not.toHaveBeenCalled();
@@ -42,7 +42,7 @@ describe('sseManager', () => {
     registerClient('ABC123', ctrlOk);
     registerClient('ABC123', ctrlDead);
 
-    broadcastToRoom('ABC123', { type: 'player_joined', roomCode: 'ABC123', players: [], timestamp: 0 });
+    broadcastToRoom('ABC123', { type: 'player_joined', roomCode: 'ABC123', players: [], status: 'WAITING', timestamp: 0 });
 
     expect(getClientCount('ABC123')).toBe(1);
   });

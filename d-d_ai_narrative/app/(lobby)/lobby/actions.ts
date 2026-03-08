@@ -1,7 +1,7 @@
 'use server';
 
 import { auth } from '@/lib/auth';
-import { createRoom, joinRoom, leaveRoom } from '@/lib/services/room';
+import { createRoom, joinRoom, leaveRoom, updateRoomStatus } from '@/lib/services/room';
 import type { RoomPublic } from '@/lib/services/room';
 import { JoinRoomSchema } from '@/lib/validations/room';
 import { redirect } from 'next/navigation';
@@ -49,6 +49,26 @@ export async function joinRoomAction(code: string): Promise<JoinRoomResult> {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Impossible de rejoindre ce salon',
+    };
+  }
+}
+
+export interface StartGameResult {
+  success: boolean;
+  error?: string;
+}
+
+export async function startGameAction(roomCode: string): Promise<StartGameResult> {
+  const session = await auth();
+  if (!session?.user) redirect('/login');
+
+  try {
+    await updateRoomStatus(roomCode, session.user.id, 'IN_PROGRESS');
+    return { success: true };
+  } catch (error: unknown) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Impossible de démarrer la partie',
     };
   }
 }

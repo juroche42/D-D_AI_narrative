@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { registerClient, unregisterClient } from '@/lib/sse/sseManager';
-import { getRoomPlayers } from '@/lib/sse/sseService';
+import { getRoomData } from '@/lib/sse/sseService';
 import { type NextRequest } from 'next/server';
 
 interface Props {
@@ -39,11 +39,12 @@ export async function GET(req: NextRequest, { params }: Props) {
       clientId = registerClient(roomCode, controller);
 
       // Snapshot initial
-      const players = await getRoomPlayers(roomCode);
+      const { players, status } = await getRoomData(roomCode);
       const initialEvent = JSON.stringify({
         type: 'player_joined',
         roomCode,
         players,
+        status,
         timestamp: Date.now(),
       });
       controller.enqueue(new TextEncoder().encode(`data: ${initialEvent}\n\n`));

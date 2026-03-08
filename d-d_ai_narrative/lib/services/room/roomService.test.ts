@@ -33,7 +33,7 @@ vi.mock('@/lib/sse/sseManager', () => ({
   broadcastToRoom: vi.fn(),
 }));
 
-import { createRoom, getRoomByCode, joinRoom, leaveRoom } from './roomService';
+import { createRoom, getRoomByCode, joinRoom, leaveRoom, updateRoomStatus } from './roomService';
 import { prisma } from '@/lib/prisma';
 
 const MOCK_ROOM = {
@@ -268,5 +268,63 @@ describe('leaveRoom', () => {
     } as never);
 
     await expect(leaveRoom('ABC123', 'stranger')).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe('updateRoomStatus', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NEXTAUTH_URL = 'http://localhost:3000';
+  });
+
+  it('host peut passer WAITING → IN_PROGRESS avec ≥ 2 joueurs', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      ...MOCK_ROOM, _count: { players: 3 },
+    } as never);
+    vi.mocked(prisma.room.update).mockResolvedValue({
+      ...MOCK_ROOM, status: 'IN_PROGRESS',
+    } as never);
+
+    const result = await updateRoomStatus('ABC123', 'user_cuid_1', 'IN_PROGRESS');
+
+    expect(result.status).toBe('IN_PROGRESS');
+    expect(prisma.room.update).toHaveBeenCalledWith({
+      where: { id: 'room_cuid_1' },
+      data: { status: 'IN_PROGRESS' },
+    });
+  });
+
+  it('lève 403 si un non-host tente de démarrer', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      ...MOCK_ROOM, _count: { players: 3 },
+    } as never);
+
+    await expect(updateRoomStatus('ABC123', 'stranger', 'IN_PROGRESS'))
+      .rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('lève 422 si moins de 2 joueurs pour démarrer', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      ...MOCK_ROOM, _count: { players: 1 },
+    } as never);
+
+    await expect(updateRoomStatus('ABC123', 'user_cuid_1', 'IN_PROGRESS'))
+      .rejects.toMatchObject({ statusCode: 422 });
+  });
+
+  it('lève 409 pour une transition invalide (FINISHED → IN_PROGRESS)', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      ...MOCK_ROOM, status: 'FINISHED', _count: { players: 3 },
+    } as never);
+
+    await expect(updateRoomStatus('ABC123', 'user_cuid_1', 'IN_PROGRESS'))
+      .rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('lève 404 si le salon est inconnu', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue(null);
+
+    await expect(updateRoomStatus('XXXXXX', 'user_cuid_1', 'IN_PROGRESS'))
+      .rejects.toMatchObject({ statusCode: 404 });
   });
 });
