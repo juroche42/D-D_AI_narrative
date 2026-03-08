@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { RoomStatus } from '@/app/generated/prisma/enums';
 import { conflict, gone, notFound, unprocessable } from '@/lib/api/errors';
 import { broadcastPlayerUpdate } from '@/lib/sse/sseService';
+import { broadcastToRoom } from '@/lib/sse/sseManager';
 
 const generateCode = customAlphabet('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 6);
 
@@ -128,6 +129,48 @@ export async function joinRoom(code: string, userId: string): Promise<RoomPublic
   await broadcastPlayerUpdate(code.toUpperCase(), 'player_joined');
 
   return toRoomPublic(room);
+}
+
+/**
+ * Quitte un salon. Transfère le host si nécessaire, supprime le salon si le host était seul.
+ * @throws AppError 404 si le salon ou la membership est introuvable
+ */
+export async function leaveRoom(roomCode: string, userId: string): Promise<void> {
+  const code = roomCode.toUpperCase();
+
+  const room = await prisma.room.findUnique({
+    where: { code },
+    include: {
+      players: { orderBy: { joinedAt: 'asc' } },
+    },
+  });
+
+  if (!room) throw notFound('Salon introuvable');
+
+  const membership = room.players.find((p) => p.userId === userId);
+  if (!membership) throw notFound("Vous n'êtes pas dans ce salon");
+
+  const isHost = room.hostId === userId;
+  const otherPlayers = room.players.filter((p) => p.userId !== userId);
+
+  if (isHost && otherPlayers.length === 0) {
+    await prisma.room.delete({ where: { id: room.id } });
+    broadcastToRoom(code, { type: 'room_closed', roomCode: code, players: [], timestamp: Date.now() });
+    return;
+  }
+
+  if (isHost) {
+    const newHost = otherPlayers[0];
+    await prisma.$transaction([
+      prisma.roomPlayer.delete({ where: { id: membership.id } }),
+      prisma.room.update({ where: { id: room.id }, data: { hostId: newHost.userId } }),
+    ]);
+    await broadcastPlayerUpdate(code, 'player_left');
+    return;
+  }
+
+  await prisma.roomPlayer.delete({ where: { id: membership.id } });
+  await broadcastPlayerUpdate(code, 'player_left');
 }
 
 function toRoomPublic(room: {
