@@ -1,14 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Copy, Check, Layout, User,
-  AlertCircle, ExternalLink, LogOut,
+  AlertCircle, ExternalLink, LogOut, Loader2,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import type { RoomPublic } from '@/lib/services/room';
 import { PlayerList } from '@/components/lobby/PlayerList';
+import { leaveRoomAction } from '@/app/(lobby)/lobby/actions';
 
 interface CurrentUser {
   id: string;
@@ -21,8 +23,19 @@ interface RoomLobbyProps {
 }
 
 export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
+  const router = useRouter();
   const [codeCopied, setCodeCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [isPendingLeave, startLeaveTransition] = useTransition();
+
+  function handleLeave() {
+    startLeaveTransition(async () => {
+      const result = await leaveRoomAction(room.code);
+      if (result.success) {
+        router.push('/lobby');
+      }
+    });
+  }
 
   const copy = async (text: string, type: 'code' | 'link') => {
     try {
@@ -116,10 +129,11 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
                 <div className="flex gap-4">
                   <Button
                     variant="outline"
-                    disabled
-                    className="border-white/20 text-gray-500 font-black uppercase tracking-widest text-xs opacity-50 cursor-not-allowed"
+                    onClick={handleLeave}
+                    disabled={isPendingLeave}
+                    className="border-white/20 text-gray-500 font-black uppercase tracking-widest text-xs hover:border-red-900/50 hover:text-red-500 transition-colors"
                   >
-                    <LogOut size={14} />
+                    {isPendingLeave ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
                     Quitter
                   </Button>
 

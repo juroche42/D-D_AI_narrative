@@ -7,10 +7,13 @@ vi.mock('@/lib/prisma', () => ({
       findFirst: vi.fn(),
       findUnique: vi.fn(),
       create: vi.fn(),
+      delete: vi.fn(),
     },
     room: {
       findUnique: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
     },
     $transaction: vi.fn(),
   },
@@ -26,7 +29,11 @@ vi.mock('@/lib/sse/sseService', () => ({
   broadcastPlayerUpdate: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { createRoom, getRoomByCode, joinRoom } from './roomService';
+vi.mock('@/lib/sse/sseManager', () => ({
+  broadcastToRoom: vi.fn(),
+}));
+
+import { createRoom, getRoomByCode, joinRoom, leaveRoom } from './roomService';
 import { prisma } from '@/lib/prisma';
 
 const MOCK_ROOM = {
@@ -202,5 +209,64 @@ describe('joinRoom', () => {
     expect(prisma.room.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { code: 'ABC123' } }),
     );
+  });
+});
+
+const MOCK_PLAYERS = [
+  { id: 'rp_1', userId: 'user_cuid_1', joinedAt: new Date('2026-03-03T10:00:00'), roomId: 'room_cuid_1' },
+  { id: 'rp_2', userId: 'user_2', joinedAt: new Date('2026-03-03T10:01:00'), roomId: 'room_cuid_1' },
+];
+
+describe('leaveRoom', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NEXTAUTH_URL = 'http://localhost:3000';
+  });
+
+  it('host seul → supprime le salon et broadcast room_closed', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      ...MOCK_ROOM, players: [MOCK_PLAYERS[0]],
+    } as never);
+    vi.mocked(prisma.room.delete).mockResolvedValue(MOCK_ROOM as never);
+
+    await leaveRoom('ABC123', 'user_cuid_1');
+
+    expect(prisma.room.delete).toHaveBeenCalledWith({ where: { id: 'room_cuid_1' } });
+  });
+
+  it('host avec autres → transfère le host et supprime son entry', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      ...MOCK_ROOM, players: MOCK_PLAYERS,
+    } as never);
+    vi.mocked(prisma.$transaction).mockResolvedValue([] as never);
+
+    await leaveRoom('ABC123', 'user_cuid_1');
+
+    expect(prisma.$transaction).toHaveBeenCalled();
+  });
+
+  it('joueur normal → supprime son entry et broadcast player_left', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      ...MOCK_ROOM, players: MOCK_PLAYERS,
+    } as never);
+    vi.mocked(prisma.roomPlayer.delete).mockResolvedValue({} as never);
+
+    await leaveRoom('ABC123', 'user_2');
+
+    expect(prisma.roomPlayer.delete).toHaveBeenCalledWith({ where: { id: 'rp_2' } });
+  });
+
+  it('lève 404 si le salon est inconnu', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue(null);
+
+    await expect(leaveRoom('XXXXXX', 'user_cuid_1')).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("lève 404 si le joueur n'est pas membre", async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      ...MOCK_ROOM, players: [MOCK_PLAYERS[0]],
+    } as never);
+
+    await expect(leaveRoom('ABC123', 'stranger')).rejects.toMatchObject({ statusCode: 404 });
   });
 });
