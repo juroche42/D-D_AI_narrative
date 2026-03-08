@@ -1,19 +1,20 @@
 'use client';
 
 import { Crown, User, AlertCircle, Wifi, WifiOff, Loader2 } from 'lucide-react';
-
-import { useRoomPlayers } from '@/hooks/useRoomPlayers';
 import type { SSEPlayer } from '@/lib/sse/sseManager';
+
+type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'error';
 
 interface PlayerListProps {
   roomCode: string;
   currentUserId: string;
   maxPlayers: number;
+  players: SSEPlayer[];
+  status: ConnectionStatus;
+  error: string | null;
 }
 
-export function PlayerList({ roomCode, currentUserId, maxPlayers }: PlayerListProps) {
-  const { players, status, error } = useRoomPlayers(roomCode);
-
+export function PlayerList({ roomCode, currentUserId, maxPlayers, players, status, error }: PlayerListProps) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
@@ -112,8 +113,6 @@ function PlayerCard({ player, isCurrentUser }: { player: SSEPlayer; isCurrentUse
     </div>
   );
 }
-
-type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'error';
 
 function ConnectionBadge({ status }: { status: ConnectionStatus }) {
   const config: Record<ConnectionStatus, { icon: React.ReactNode; label: string; color: string }> = {

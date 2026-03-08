@@ -33,7 +33,7 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
   const [isPendingReady, startReadyTransition] = useTransition();
   const [startError, setStartError] = useState<string | null>(null);
 
-  const { players, roomStatus } = useRoomPlayers(room.code);
+  const { players, roomStatus, status: sseStatus, error: sseError } = useRoomPlayers(room.code);
   const isHost = currentUser.id === room.hostId;
   const canStart = isHost && roomStatus === 'WAITING' && players.length >= 2;
 
@@ -267,6 +267,9 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
               roomCode={room.code}
               currentUserId={currentUser.id}
               maxPlayers={room.maxPlayers}
+              players={players}
+              status={sseStatus}
+              error={sseError}
             />
           </CardContent>
         </Card>

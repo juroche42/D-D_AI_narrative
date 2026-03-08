@@ -69,7 +69,7 @@ export async function getRoomByCode(code: string): Promise<RoomPublic> {
   const room = await prisma.room.findUnique({
     where: { code: code.toUpperCase() },
   });
-  if (!room) throw notFound('Salon introuvable ou code invalide');
+  if (!room) throw notFound('Salon');
   return toRoomPublic(room);
 }
 
@@ -85,7 +85,7 @@ export async function getRoomPreview(code: string): Promise<RoomPublic & { playe
     include: { _count: { select: { players: true } } },
   });
 
-  if (!room) throw notFound('Salon introuvable ou code invalide');
+  if (!room) throw notFound('Salon');
   if (room.status !== RoomStatus.WAITING) {
     throw gone('Ce salon a déjà démarré ou est terminé');
   }
@@ -106,7 +106,7 @@ export async function joinRoom(code: string, userId: string): Promise<RoomPublic
     include: { _count: { select: { players: true } } },
   });
 
-  if (!room) throw notFound('Salon introuvable ou code invalide');
+  if (!room) throw notFound('Salon');
   if (room.status !== RoomStatus.WAITING) throw gone('Ce salon a déjà démarré ou est terminé');
   if (room._count.players >= room.maxPlayers) throw unprocessable('Ce salon est complet');
 
@@ -145,10 +145,10 @@ export async function leaveRoom(roomCode: string, userId: string): Promise<void>
     },
   });
 
-  if (!room) throw notFound('Salon introuvable');
+  if (!room) throw notFound('Salon');
 
   const membership = room.players.find((p) => p.userId === userId);
-  if (!membership) throw notFound("Vous n'êtes pas dans ce salon");
+  if (!membership) throw notFound('Membership');
 
   const isHost = room.hostId === userId;
   const otherPlayers = room.players.filter((p) => p.userId !== userId);
@@ -193,7 +193,7 @@ export async function updateRoomStatus(
     include: { _count: { select: { players: true } } },
   });
 
-  if (!room) throw notFound('Salon introuvable');
+  if (!room) throw notFound('Salon');
   if (room.hostId !== userId) throw forbidden("Seul le host peut modifier l'état du salon");
 
   const validTransitions: Record<string, string[]> = {
@@ -237,10 +237,10 @@ export async function togglePlayerReady(
     include: { players: { where: { userId } } },
   });
 
-  if (!room) throw notFound('Salon introuvable');
+  if (!room) throw notFound('Salon');
 
   const membership = room.players[0];
-  if (!membership) throw notFound("Vous n'êtes pas dans ce salon");
+  if (!membership) throw notFound('Membership');
   if (room.hostId === userId) throw forbidden("Le host n'a pas besoin de se marquer prêt");
   if (room.status !== RoomStatus.WAITING) throw conflict('Impossible de changer son état hors de la phase de préparation');
 
