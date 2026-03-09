@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { success, error } from '@/lib/api/response/ApiResponse';
+import { notFound } from '@/lib/api/errors';
 import { getCampaignById } from '@/lib/services/campaign/campaignService';
 
 interface RouteContext {
@@ -15,6 +16,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext): Promise<
   try {
     const { id } = await params;
     const { systemPrompt: _, ...publicData } = await getCampaignById(id);
+    if (!publicData.isPublic) throw notFound('Campaign');
     return success(publicData);
   } catch (err) {
     return error(err);

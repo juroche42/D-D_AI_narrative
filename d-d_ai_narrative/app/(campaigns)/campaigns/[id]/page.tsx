@@ -28,6 +28,7 @@ export default async function CampaignDetailPage({ params }: Props) {
   let campaign;
   try {
     const { systemPrompt: _, ...publicData } = await getCampaignById(id);
+    if (!publicData.isPublic) notFound();
     campaign = publicData;
   } catch {
     notFound();

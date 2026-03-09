@@ -38,7 +38,7 @@ async function generateUniqueCode(): Promise<string> {
  * Crée un salon et y ajoute le créateur comme host.
  * @throws AppError 409 si l'utilisateur est déjà dans un salon WAITING
  */
-export async function createRoom(userId: string, username: string): Promise<RoomPublic> {
+export async function createRoom(userId: string, username: string, campaignId?: string): Promise<RoomPublic> {
   const existing = await prisma.roomPlayer.findFirst({
     where: { userId, room: { status: RoomStatus.WAITING } },
   });
@@ -51,7 +51,7 @@ export async function createRoom(userId: string, username: string): Promise<Room
 
   const room = await prisma.$transaction(async (tx) => {
     const newRoom = await tx.room.create({
-      data: { code, name: `Salon de ${username}`, hostId: userId },
+      data: { code, name: `Salon de ${username}`, hostId: userId, ...(campaignId && { campaignId }) },
     });
     await tx.roomPlayer.create({
       data: { roomId: newRoom.id, userId },

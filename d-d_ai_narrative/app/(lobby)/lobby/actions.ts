@@ -126,11 +126,17 @@ export async function playCampaignAction(campaignId: string): Promise<PlayCampai
   if (!session?.user) redirect('/login');
 
   try {
-    const room = await createRoom(session.user.id, session.user.username);
-    await prisma.room.update({
-      where: { code: room.code },
-      data: { campaignId },
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: { isPublic: true, isPremium: true },
     });
+    if (!campaign || !campaign.isPublic) {
+      return { success: false, error: 'Campagne introuvable ou non disponible' };
+    }
+    if (campaign.isPremium) {
+      return { success: false, error: 'Cette campagne est réservée aux membres Premium' };
+    }
+    const room = await createRoom(session.user.id, session.user.username, campaignId);
     return { success: true, roomCode: room.code };
   } catch (error: unknown) {
     return {
