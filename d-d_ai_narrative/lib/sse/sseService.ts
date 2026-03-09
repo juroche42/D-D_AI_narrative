@@ -1,11 +1,12 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
+import { RoomStatus } from '@/app/generated/prisma/enums';
 import { broadcastToRoom } from './sseManager';
 import type { SSEEvent, SSEPlayer } from './sseManager';
 
 export async function getRoomData(roomCode: string): Promise<{
   players: SSEPlayer[];
-  status: string;
+  status: RoomStatus;
 }> {
   const room = await prisma.room.findUnique({
     where: { code: roomCode.toUpperCase() },
@@ -17,7 +18,7 @@ export async function getRoomData(roomCode: string): Promise<{
     },
   });
 
-  if (!room) return { players: [], status: 'WAITING' };
+  if (!room) return { players: [], status: RoomStatus.WAITING };
 
   const players: SSEPlayer[] = room.players.map((rp) => ({
     userId: rp.user.id,
