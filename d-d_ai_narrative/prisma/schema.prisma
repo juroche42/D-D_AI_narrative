@@ -27,6 +27,7 @@ model User {
 
   hostedRooms Room[]       @relation("RoomHost")
   roomPlayers RoomPlayer[]
+  campaigns   Campaign[]   @relation("CampaignCreator")
 }
 
 model Profile {
@@ -137,6 +138,9 @@ model Room {
   hostId String
   host   User   @relation("RoomHost", fields: [hostId], references: [id])
 
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id])
+
   players RoomPlayer[]
 
   @@map("rooms")
@@ -170,4 +174,44 @@ enum MemoryType {
 enum ProfileLanguage {
   FR
   EN
+}
+
+enum CampaignTheme {
+  HORROR        // Horreur et suspense
+  HEROIC        // Aventure héroïque classique
+  MYSTERY       // Mystère et investigation
+  INVESTIGATION // Enquête et déduction
+}
+
+enum CampaignDifficulty {
+  EASY   // Accessible aux débutants
+  MEDIUM // Expérience D&D recommandée
+  HARD   // Joueurs confirmés
+}
+
+model Campaign {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  creatorId String
+  creator   User   @relation("CampaignCreator", fields: [creatorId], references: [id])
+
+  title             String
+  synopsis          String
+  startLocation     String
+  mainQuest         String
+  systemPrompt      String
+  theme             CampaignTheme
+  difficulty        CampaignDifficulty
+  minPlayers        Int                @default(2)
+  maxPlayers        Int                @default(6)
+  estimatedDuration Int
+  isPublic          Boolean            @default(true)
+  isPremium         Boolean            @default(false)
+
+  rooms Room[]
+
+  @@index([isPublic, isPremium])
+  @@map("campaigns")
 }
