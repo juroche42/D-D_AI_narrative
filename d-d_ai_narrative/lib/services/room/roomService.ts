@@ -184,7 +184,7 @@ export async function leaveRoom(roomCode: string, userId: string): Promise<void>
 export async function updateRoomStatus(
   roomCode: string,
   userId: string,
-  newStatus: 'IN_PROGRESS' | 'FINISHED',
+  newStatus: Exclude<RoomStatus, 'WAITING'>,
 ): Promise<RoomPublic> {
   const code = roomCode.toUpperCase();
 
@@ -196,9 +196,9 @@ export async function updateRoomStatus(
   if (!room) throw notFound('Salon');
   if (room.hostId !== userId) throw forbidden("Seul le host peut modifier l'état du salon");
 
-  const validTransitions: Record<string, string[]> = {
-    WAITING: ['IN_PROGRESS'],
-    IN_PROGRESS: ['FINISHED'],
+  const validTransitions: Record<RoomStatus, RoomStatus[]> = {
+    WAITING: [RoomStatus.IN_PROGRESS],
+    IN_PROGRESS: [RoomStatus.FINISHED],
     FINISHED: [],
   };
 
@@ -212,7 +212,7 @@ export async function updateRoomStatus(
 
   const updated = await prisma.room.update({
     where: { id: room.id },
-    data: { status: newStatus as RoomStatus },
+    data: { status: newStatus },
   });
 
   await broadcastPlayerUpdate(code, 'room_status_changed');

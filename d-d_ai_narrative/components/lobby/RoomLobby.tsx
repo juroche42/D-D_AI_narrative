@@ -32,6 +32,7 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
   const [isStarting, startStartTransition] = useTransition();
   const [isPendingReady, startReadyTransition] = useTransition();
   const [startError, setStartError] = useState<string | null>(null);
+  const [readyError, setReadyError] = useState<string | null>(null);
 
   const { players, roomStatus, status: sseStatus, error: sseError } = useRoomPlayers(room.code);
   const isHost = currentUser.id === room.hostId;
@@ -63,9 +64,12 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
   }
 
   function handleToggleReady() {
+    setReadyError(null);
     startReadyTransition(async () => {
-      await toggleReadyAction(room.code);
-      // Le SSE 'player_updated' met à jour la liste automatiquement
+      const result = await toggleReadyAction(room.code);
+      if (!result.success) {
+        setReadyError(result.error ?? 'Impossible de mettre à jour votre statut');
+      }
     });
   }
 
@@ -234,6 +238,13 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
                   </p>
                 )}
 
+                {/* Erreur toggle prêt */}
+                {readyError && (
+                  <p className="text-[10px] font-black uppercase tracking-widest text-red-500 animate-in fade-in">
+                    {readyError}
+                  </p>
+                )}
+        
                 {/* Message non-host */}
                 {!isHost && (
                   <div className={`border px-4 py-2 rounded-lg ${

@@ -19,6 +19,9 @@
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui"
   },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "pnpm": {
     "onlyBuiltDependencies": [
       "bcrypt",
