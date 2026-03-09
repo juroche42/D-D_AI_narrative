@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { CampaignTheme, CampaignDifficulty } from '@/app/generated/prisma/enums';
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -19,8 +20,8 @@ const mockCampaign = {
   startLocation: 'Phandalin',
   mainQuest: 'Retrouver la mine',
   systemPrompt: 'Tu es le MJ...',
-  theme: 'HEROIC' as const,
-  difficulty: 'EASY' as const,
+  theme: CampaignTheme.HEROIC,
+  difficulty: CampaignDifficulty.EASY,
   minPlayers: 2,
   maxPlayers: 5,
   estimatedDuration: 600,
@@ -35,7 +36,7 @@ describe('getPublicCampaigns', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('retourne les campagnes publiques sans systemPrompt', async () => {
-    vi.mocked(prisma.campaign.findMany).mockResolvedValue([mockCampaign] as any);
+    vi.mocked(prisma.campaign.findMany).mockResolvedValue([mockCampaign]);
 
     const result = await getPublicCampaigns();
     expect(result).toHaveLength(1);
@@ -44,7 +45,7 @@ describe('getPublicCampaigns', () => {
   });
 
   it('filtre uniquement les campagnes isPublic=true', async () => {
-    vi.mocked(prisma.campaign.findMany).mockResolvedValue([] as any);
+    vi.mocked(prisma.campaign.findMany).mockResolvedValue([]);
 
     const result = await getPublicCampaigns();
     expect(prisma.campaign.findMany).toHaveBeenCalledWith(
@@ -58,7 +59,7 @@ describe('getCampaignById', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('retourne la campagne avec systemPrompt pour usage interne', async () => {
-    vi.mocked(prisma.campaign.findUnique).mockResolvedValue(mockCampaign as any);
+    vi.mocked(prisma.campaign.findUnique).mockResolvedValue(mockCampaign);
 
     const result = await getCampaignById('campaign_1');
     expect(result.systemPrompt).toBe('Tu es le MJ...');
