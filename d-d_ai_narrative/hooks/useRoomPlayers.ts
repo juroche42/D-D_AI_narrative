@@ -7,12 +7,14 @@ type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'error';
 
 interface UseRoomPlayersResult {
   players: SSEPlayer[];
+  roomStatus: string;
   status: ConnectionStatus;
   error: string | null;
 }
 
 export function useRoomPlayers(roomCode: string): UseRoomPlayersResult {
   const [players, setPlayers] = useState<SSEPlayer[]>([]);
+  const [roomStatus, setRoomStatus] = useState<string>('WAITING');
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [error, setError] = useState<string | null>(null);
   const retryCount = useRef(0);
@@ -42,6 +44,7 @@ export function useRoomPlayers(roomCode: string): UseRoomPlayersResult {
           }
 
           setPlayers(data.players);
+          setRoomStatus(data.status ?? 'WAITING');
         } catch {
           console.error('[SSE] Erreur parsing:', event.data);
         }
@@ -70,5 +73,5 @@ export function useRoomPlayers(roomCode: string): UseRoomPlayersResult {
     };
   }, [roomCode]);
 
-  return { players, status, error };
+  return { players, roomStatus, status, error };
 }

@@ -1,4 +1,4 @@
-export type SSEEventType = 'player_joined' | 'player_left' | 'player_updated' | 'room_closed';
+export type SSEEventType = 'player_joined' | 'player_left' | 'player_updated' | 'room_closed' | 'room_status_changed';
 
 export interface SSEPlayer {
   userId: string;
@@ -13,6 +13,7 @@ export interface SSEEvent {
   type: SSEEventType;
   roomCode: string;
   players: SSEPlayer[];
+  status: string;
   timestamp: number;
 }
 

@@ -4,13 +4,15 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Copy, Check, Layout, User,
-  AlertCircle, ExternalLink, LogOut, Loader2,
+  AlertCircle, ExternalLink, LogOut, Loader2, Swords,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import type { RoomPublic } from '@/lib/services/room';
 import { PlayerList } from '@/components/lobby/PlayerList';
-import { leaveRoomAction } from '@/app/(lobby)/lobby/actions';
+import { RoomStatusBadge } from '@/components/lobby/RoomStatusBadge';
+import { leaveRoomAction, startGameAction, toggleReadyAction } from '@/app/(lobby)/lobby/actions';
+import { useRoomPlayers } from '@/hooks/useRoomPlayers';
 
 interface CurrentUser {
   id: string;
@@ -27,6 +29,19 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
   const [codeCopied, setCodeCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [isPendingLeave, startLeaveTransition] = useTransition();
+  const [isStarting, startStartTransition] = useTransition();
+  const [isPendingReady, startReadyTransition] = useTransition();
+  const [startError, setStartError] = useState<string | null>(null);
+
+  const { players, roomStatus, status: sseStatus, error: sseError } = useRoomPlayers(room.code);
+  const isHost = currentUser.id === room.hostId;
+  const canStart = isHost && roomStatus === 'WAITING' && players.length >= 2;
+
+  const nonHostPlayers = players.filter(p => !p.isHost);
+  const readyCount = nonHostPlayers.filter(p => p.isReady).length;
+  const allReady = nonHostPlayers.length > 0 && nonHostPlayers.every(p => p.isReady);
+  const myPlayer = players.find(p => p.userId === currentUser.id);
+  const iAmReady = myPlayer?.isReady ?? false;
 
   function handleLeave() {
     startLeaveTransition(async () => {
@@ -34,6 +49,23 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
       if (result.success) {
         router.push('/lobby');
       }
+    });
+  }
+
+  function handleStart() {
+    setStartError(null);
+    startStartTransition(async () => {
+      const result = await startGameAction(room.code);
+      if (!result.success) {
+        setStartError(result.error ?? 'Impossible de démarrer');
+      }
+    });
+  }
+
+  function handleToggleReady() {
+    startReadyTransition(async () => {
+      await toggleReadyAction(room.code);
+      // Le SSE 'player_updated' met à jour la liste automatiquement
     });
   }
 
@@ -63,13 +95,11 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
 
               {/* Header */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <h3 className="text-3xl font-black text-white uppercase italic tracking-tight">
                     {room.name}
                   </h3>
-                  <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-                    État : En préparation
-                  </p>
+                  <RoomStatusBadge status={roomStatus} size="sm" />
                 </div>
 
                 {/* Code d'invitation */}
@@ -126,7 +156,9 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
 
               {/* Footer actions */}
               <div className="pt-6 border-t border-white/5 flex flex-col items-end gap-3">
-                <div className="flex gap-4">
+                <div className="flex gap-4 items-center flex-wrap justify-end">
+
+                  {/* Bouton Quitter — tous les joueurs */}
                   <Button
                     variant="outline"
                     onClick={handleLeave}
@@ -137,20 +169,91 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
                     Quitter
                   </Button>
 
-                  <Button
-                    disabled
-                    className="bg-red-600 text-white font-black uppercase tracking-widest text-xs px-10 opacity-40 cursor-not-allowed"
-                  >
-                    {"Démarrer l'Aventure"}
-                  </Button>
+                  {/* Bouton Prêt — non-host uniquement, en phase WAITING */}
+                  {!isHost && roomStatus === 'WAITING' && (
+                    <Button
+                      variant="outline"
+                      onClick={handleToggleReady}
+                      disabled={isPendingReady}
+                      className={`font-black uppercase tracking-widest text-xs transition-colors ${
+                        iAmReady
+                          ? 'border-green-700 text-green-500 bg-green-950/20 hover:border-red-900/50 hover:text-red-500'
+                          : 'border-white/20 text-gray-400 hover:border-green-700 hover:text-green-400'
+                      }`}
+                    >
+                      {isPendingReady
+                        ? <Loader2 size={14} className="animate-spin" />
+                        : iAmReady
+                        ? <><Check size={14} /> Prêt</>
+                        : 'Je suis prêt'
+                      }
+                    </Button>
+                  )}
+
+                  {/* Bouton Démarrer — host uniquement */}
+                  {isHost && (
+                    <Button
+                      onClick={handleStart}
+                      disabled={!canStart || isStarting}
+                      className={`font-black uppercase tracking-widest text-xs px-10 transition-all ${
+                        canStart && allReady
+                          ? 'bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-600/20'
+                          : canStart
+                          ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/20'
+                          : 'bg-red-600/20 text-red-900 cursor-not-allowed'
+                      }`}
+                    >
+                      {isStarting
+                        ? <><Loader2 size={14} className="animate-spin" /> Démarrage...</>
+                        : canStart && allReady
+                        ? <><Swords size={14} /> Lancer la Partie !</>
+                        : <><Swords size={14} /> {"Démarrer l'Aventure"}</>
+                      }
+                    </Button>
+                  )}
                 </div>
 
-                <div className="bg-red-950/20 border border-red-900/30 px-4 py-2 rounded-lg">
-                  <p className="text-[10px] text-red-500 font-black uppercase tracking-widest flex items-center gap-2">
-                    <AlertCircle size={12} />
-                    En attente des autres joueurs
+                {/* Message host : compteur prêts */}
+                {isHost && roomStatus === 'WAITING' && (
+                  <p className={`text-[10px] font-black uppercase tracking-widest ${
+                    allReady ? 'text-green-500' : 'text-gray-500'
+                  }`}>
+                    {players.length < 2
+                      ? "En attente d'un 2ème joueur"
+                      : allReady
+                      ? '✓ Tous les joueurs sont prêts !'
+                      : `${readyCount}/${nonHostPlayers.length} joueur${nonHostPlayers.length > 1 ? 's' : ''} prêt${readyCount > 1 ? 's' : ''}`
+                    }
                   </p>
-                </div>
+                )}
+
+                {/* Erreur démarrage */}
+                {startError && (
+                  <p className="text-[10px] font-black uppercase tracking-widest text-red-500 animate-in fade-in">
+                    {startError}
+                  </p>
+                )}
+
+                {/* Message non-host */}
+                {!isHost && (
+                  <div className={`border px-4 py-2 rounded-lg ${
+                    iAmReady
+                      ? 'bg-green-950/20 border-green-900/30'
+                      : 'bg-red-950/20 border-red-900/30'
+                  }`}>
+                    <p className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${
+                      iAmReady ? 'text-green-500' : 'text-red-500'
+                    }`}>
+                      <AlertCircle size={12} />
+                      {roomStatus === 'WAITING'
+                        ? iAmReady
+                          ? 'Vous êtes prêt — en attente du host'
+                          : 'Marquez-vous prêt ou attendez le host'
+                        : 'La partie est en cours...'
+                      }
+                    </p>
+                  </div>
+                )}
               </div>
 
             </CardContent>
@@ -164,6 +267,9 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
               roomCode={room.code}
               currentUserId={currentUser.id}
               maxPlayers={room.maxPlayers}
+              players={players}
+              status={sseStatus}
+              error={sseError}
             />
           </CardContent>
         </Card>

@@ -2,7 +2,7 @@ import 'server-only';
 import { customAlphabet } from 'nanoid';
 import { prisma } from '@/lib/prisma';
 import { RoomStatus } from '@/app/generated/prisma/enums';
-import { conflict, gone, notFound, unprocessable } from '@/lib/api/errors';
+import { conflict, forbidden, gone, notFound, unprocessable } from '@/lib/api/errors';
 import { broadcastPlayerUpdate } from '@/lib/sse/sseService';
 import { broadcastToRoom } from '@/lib/sse/sseManager';
 
@@ -69,7 +69,7 @@ export async function getRoomByCode(code: string): Promise<RoomPublic> {
   const room = await prisma.room.findUnique({
     where: { code: code.toUpperCase() },
   });
-  if (!room) throw notFound('Salon introuvable ou code invalide');
+  if (!room) throw notFound('Salon');
   return toRoomPublic(room);
 }
 
@@ -85,7 +85,7 @@ export async function getRoomPreview(code: string): Promise<RoomPublic & { playe
     include: { _count: { select: { players: true } } },
   });
 
-  if (!room) throw notFound('Salon introuvable ou code invalide');
+  if (!room) throw notFound('Salon');
   if (room.status !== RoomStatus.WAITING) {
     throw gone('Ce salon a déjà démarré ou est terminé');
   }
@@ -106,7 +106,7 @@ export async function joinRoom(code: string, userId: string): Promise<RoomPublic
     include: { _count: { select: { players: true } } },
   });
 
-  if (!room) throw notFound('Salon introuvable ou code invalide');
+  if (!room) throw notFound('Salon');
   if (room.status !== RoomStatus.WAITING) throw gone('Ce salon a déjà démarré ou est terminé');
   if (room._count.players >= room.maxPlayers) throw unprocessable('Ce salon est complet');
 
@@ -145,17 +145,17 @@ export async function leaveRoom(roomCode: string, userId: string): Promise<void>
     },
   });
 
-  if (!room) throw notFound('Salon introuvable');
+  if (!room) throw notFound('Salon');
 
   const membership = room.players.find((p) => p.userId === userId);
-  if (!membership) throw notFound("Vous n'êtes pas dans ce salon");
+  if (!membership) throw notFound('Membership');
 
   const isHost = room.hostId === userId;
   const otherPlayers = room.players.filter((p) => p.userId !== userId);
 
   if (isHost && otherPlayers.length === 0) {
     await prisma.room.delete({ where: { id: room.id } });
-    broadcastToRoom(code, { type: 'room_closed', roomCode: code, players: [], timestamp: Date.now() });
+    broadcastToRoom(code, { type: 'room_closed', roomCode: code, players: [], status: '', timestamp: Date.now() });
     return;
   }
 
@@ -171,6 +171,87 @@ export async function leaveRoom(roomCode: string, userId: string): Promise<void>
 
   await prisma.roomPlayer.delete({ where: { id: membership.id } });
   await broadcastPlayerUpdate(code, 'player_left');
+}
+
+/**
+ * Met à jour le statut d'un salon. Seul le host peut déclencher la transition.
+ * Transitions autorisées : WAITING → IN_PROGRESS, IN_PROGRESS → FINISHED
+ * @throws AppError 404 si le salon n'existe pas
+ * @throws AppError 403 si l'utilisateur n'est pas le host
+ * @throws AppError 409 si la transition est invalide
+ * @throws AppError 422 si moins de 2 joueurs pour passer en IN_PROGRESS
+ */
+export async function updateRoomStatus(
+  roomCode: string,
+  userId: string,
+  newStatus: 'IN_PROGRESS' | 'FINISHED',
+): Promise<RoomPublic> {
+  const code = roomCode.toUpperCase();
+
+  const room = await prisma.room.findUnique({
+    where: { code },
+    include: { _count: { select: { players: true } } },
+  });
+
+  if (!room) throw notFound('Salon');
+  if (room.hostId !== userId) throw forbidden("Seul le host peut modifier l'état du salon");
+
+  const validTransitions: Record<string, string[]> = {
+    WAITING: ['IN_PROGRESS'],
+    IN_PROGRESS: ['FINISHED'],
+    FINISHED: [],
+  };
+
+  if (!validTransitions[room.status]?.includes(newStatus)) {
+    throw conflict(`Transition invalide : ${room.status} → ${newStatus}`);
+  }
+
+  if (newStatus === 'IN_PROGRESS' && room._count.players < 2) {
+    throw unprocessable('Il faut au moins 2 joueurs pour démarrer la partie');
+  }
+
+  const updated = await prisma.room.update({
+    where: { id: room.id },
+    data: { status: newStatus as RoomStatus },
+  });
+
+  await broadcastPlayerUpdate(code, 'room_status_changed');
+
+  return toRoomPublic(updated);
+}
+
+/**
+ * Bascule l'état "prêt" d'un joueur non-host.
+ * @throws AppError 404 si le salon ou la membership est introuvable
+ * @throws AppError 403 si l'appelant est le host (le host ne se marque pas prêt)
+ * @throws AppError 409 si le salon n'est pas en WAITING
+ */
+export async function togglePlayerReady(
+  roomCode: string,
+  userId: string,
+): Promise<boolean> {
+  const code = roomCode.toUpperCase();
+
+  const room = await prisma.room.findUnique({
+    where: { code },
+    include: { players: { where: { userId } } },
+  });
+
+  if (!room) throw notFound('Salon');
+
+  const membership = room.players[0];
+  if (!membership) throw notFound('Membership');
+  if (room.hostId === userId) throw forbidden("Le host n'a pas besoin de se marquer prêt");
+  if (room.status !== RoomStatus.WAITING) throw conflict('Impossible de changer son état hors de la phase de préparation');
+
+  const updated = await prisma.roomPlayer.update({
+    where: { id: membership.id },
+    data: { isReady: !membership.isReady },
+  });
+
+  await broadcastPlayerUpdate(code, 'player_updated');
+
+  return updated.isReady;
 }
 
 function toRoomPublic(room: {

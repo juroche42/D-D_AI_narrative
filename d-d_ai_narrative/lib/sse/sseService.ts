@@ -3,7 +3,10 @@ import { prisma } from '@/lib/prisma';
 import { broadcastToRoom } from './sseManager';
 import type { SSEEvent, SSEPlayer } from './sseManager';
 
-export async function getRoomPlayers(roomCode: string): Promise<SSEPlayer[]> {
+export async function getRoomData(roomCode: string): Promise<{
+  players: SSEPlayer[];
+  status: string;
+}> {
   const room = await prisma.room.findUnique({
     where: { code: roomCode.toUpperCase() },
     include: {
@@ -14,9 +17,9 @@ export async function getRoomPlayers(roomCode: string): Promise<SSEPlayer[]> {
     },
   });
 
-  if (!room) return [];
+  if (!room) return { players: [], status: 'WAITING' };
 
-  return room.players.map((rp) => ({
+  const players: SSEPlayer[] = room.players.map((rp) => ({
     userId: rp.user.id,
     username: rp.user.username,
     characterId: rp.characterId,
@@ -24,17 +27,19 @@ export async function getRoomPlayers(roomCode: string): Promise<SSEPlayer[]> {
     isHost: rp.userId === room.hostId,
     joinedAt: rp.joinedAt,
   }));
+
+  return { players, status: room.status };
+}
+
+export async function getRoomPlayers(roomCode: string): Promise<SSEPlayer[]> {
+  const { players } = await getRoomData(roomCode);
+  return players;
 }
 
 export async function broadcastPlayerUpdate(
   roomCode: string,
   type: SSEEvent['type'] = 'player_joined',
 ): Promise<void> {
-  const players = await getRoomPlayers(roomCode);
-  broadcastToRoom(roomCode, {
-    type,
-    roomCode,
-    players,
-    timestamp: Date.now(),
-  });
+  const { players, status } = await getRoomData(roomCode);
+  broadcastToRoom(roomCode, { type, roomCode, players, status, timestamp: Date.now() });
 }
