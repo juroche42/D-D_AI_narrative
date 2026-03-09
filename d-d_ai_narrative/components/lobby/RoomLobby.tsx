@@ -244,7 +244,7 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
                     {readyError}
                   </p>
                 )}
-
+        
                 {/* Message non-host */}
                 {!isHost && (
                   <div className={`border px-4 py-2 rounded-lg ${
