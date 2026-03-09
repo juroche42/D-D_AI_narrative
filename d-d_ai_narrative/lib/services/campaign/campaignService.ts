@@ -37,7 +37,6 @@ export interface PaginatedCampaigns {
   hasNext: boolean;
   hasPrev: boolean;
 }
-
 /**
  * Valide la cohérence isPublic / isPremium.
  * isPublic=false + isPremium=true est un cas invalide — une campagne premium doit être publique.
