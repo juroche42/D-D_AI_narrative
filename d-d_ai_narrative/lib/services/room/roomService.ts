@@ -18,6 +18,7 @@ export interface RoomPublic {
   hostId: string;
   createdAt: Date;
   inviteLink: string;
+  campaign?: { id: string; title: string; theme: string; difficulty: string } | null;
 }
 
 /**
@@ -68,6 +69,9 @@ export async function createRoom(userId: string, username: string): Promise<Room
 export async function getRoomByCode(code: string): Promise<RoomPublic> {
   const room = await prisma.room.findUnique({
     where: { code: code.toUpperCase() },
+    include: {
+      campaign: { select: { id: true, title: true, theme: true, difficulty: true } },
+    },
   });
   if (!room) throw notFound('Salon');
   return toRoomPublic(room);
@@ -262,6 +266,7 @@ function toRoomPublic(room: {
   maxPlayers: number;
   hostId: string;
   createdAt: Date;
+  campaign?: { id: string; title: string; theme: string; difficulty: string } | null;
 }): RoomPublic {
   const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000';
   return {
@@ -273,5 +278,6 @@ function toRoomPublic(room: {
     hostId: room.hostId,
     createdAt: room.createdAt,
     inviteLink: `${baseUrl}/room/${room.code}`,
+    campaign: room.campaign ?? null,
   };
 }

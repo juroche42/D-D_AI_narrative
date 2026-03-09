@@ -45,6 +45,7 @@ const MOCK_ROOM = {
   maxPlayers: 6,
   hostId: 'user_cuid_1',
   campaignId: null,
+  campaign: null,
   createdAt: new Date('2026-03-03'),
   updatedAt: new Date('2026-03-03'),
   actionMode: ActionMode.VOTE,
@@ -120,6 +121,9 @@ describe('getRoomByCode', () => {
 
     expect(prisma.room.findUnique).toHaveBeenCalledWith({
       where: { code: 'ABC123' },
+      include: {
+        campaign: { select: { id: true, title: true, theme: true, difficulty: true } },
+      },
     });
   });
 

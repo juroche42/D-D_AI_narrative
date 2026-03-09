@@ -5,6 +5,7 @@ import { createRoom, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady } 
 import type { RoomPublic } from '@/lib/services/room';
 import { JoinRoomSchema } from '@/lib/validations/room';
 import { redirect } from 'next/navigation';
+import { prisma } from '@/lib/prisma';
 
 export interface CreateRoomResult {
   success: boolean;
@@ -110,6 +111,31 @@ export async function leaveRoomAction(roomCode: string): Promise<LeaveRoomResult
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Impossible de quitter ce salon',
+    };
+  }
+}
+
+export interface PlayCampaignResult {
+  success: boolean;
+  roomCode?: string;
+  error?: string;
+}
+
+export async function playCampaignAction(campaignId: string): Promise<PlayCampaignResult> {
+  const session = await auth();
+  if (!session?.user) redirect('/login');
+
+  try {
+    const room = await createRoom(session.user.id, session.user.username);
+    await prisma.room.update({
+      where: { code: room.code },
+      data: { campaignId },
+    });
+    return { success: true, roomCode: room.code };
+  } catch (error: unknown) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Impossible de créer le salon',
     };
   }
 }

@@ -31,7 +31,7 @@ export default function RootLayout({
       >
         <Providers>
           <Navbar />
-          <main className="max-w-7xl mx-auto p-4 md:p-6 min-h-[calc(100vh-160px)]">
+          <main className="max-w-7xl mx-auto p-4 md:p-6 min-h-[calc(100vh-160px)] flex flex-col items-center">
             {children}
           </main>
           <footer className="mt-20 border-t border-red-900/30 py-10 px-6 bg-[#0a0a0c] text-center text-gray-400">

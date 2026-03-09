@@ -6,23 +6,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { CampaignPublic } from '@/lib/services/campaign/campaignService';
+import { THEME_CONFIG, DIFFICULTY_CONFIG, type CampaignThemeKey, type CampaignDifficultyKey } from '@/lib/constants/campaign';
 
 interface CampaignCardProps {
   campaign: CampaignPublic;
 }
-
-const THEME_CONFIG = {
-  HEROIC:        { label: 'Héroïque',      color: 'text-yellow-500', bg: 'bg-yellow-950/20 border-yellow-900/30', bar: 'bg-yellow-600/60' },
-  HORROR:        { label: 'Horreur',       color: 'text-red-500',    bg: 'bg-red-950/20     border-red-900/30',    bar: 'bg-red-600/60' },
-  MYSTERY:       { label: 'Mystère',       color: 'text-purple-400', bg: 'bg-purple-950/20  border-purple-900/30', bar: 'bg-purple-600/60' },
-  INVESTIGATION: { label: 'Investigation', color: 'text-blue-400',   bg: 'bg-blue-950/20    border-blue-900/30',   bar: 'bg-blue-600/60' },
-} as const;
-
-const DIFFICULTY_CONFIG = {
-  EASY:   { label: 'Facile',    color: 'text-green-500' },
-  MEDIUM: { label: 'Moyen',     color: 'text-yellow-500' },
-  HARD:   { label: 'Difficile', color: 'text-red-500' },
-} as const;
 
 function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes}min`;
@@ -32,8 +20,8 @@ function formatDuration(minutes: number): string {
 }
 
 export function CampaignCard({ campaign }: CampaignCardProps) {
-  const theme = THEME_CONFIG[campaign.theme as keyof typeof THEME_CONFIG];
-  const difficulty = DIFFICULTY_CONFIG[campaign.difficulty as keyof typeof DIFFICULTY_CONFIG];
+  const theme = THEME_CONFIG[campaign.theme as CampaignThemeKey];
+  const difficulty = DIFFICULTY_CONFIG[campaign.difficulty as CampaignDifficultyKey];
 
   return (
     <Link href={`/campaigns/${campaign.id}`} className="block group">
