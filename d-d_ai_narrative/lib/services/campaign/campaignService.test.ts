@@ -6,7 +6,9 @@ vi.mock('@/lib/prisma', () => ({
     campaign: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
+      count: vi.fn(),
     },
+    $transaction: vi.fn(),
   },
 }));
 
@@ -35,23 +37,54 @@ const mockCampaign = {
 describe('getPublicCampaigns', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('retourne les campagnes publiques sans systemPrompt', async () => {
-    vi.mocked(prisma.campaign.findMany).mockResolvedValue([mockCampaign]);
+  it('retourne les campagnes paginées sans systemPrompt', async () => {
+    vi.mocked(prisma.$transaction).mockResolvedValue([[mockCampaign], 1]);
 
-    const result = await getPublicCampaigns();
-    expect(result).toHaveLength(1);
-    expect(result[0]).not.toHaveProperty('systemPrompt');
-    expect(result[0].title).toBe('La Mine Perdue de Phandelver');
+    const result = await getPublicCampaigns({ page: 1, limit: 12 });
+    expect(result.campaigns).toHaveLength(1);
+    expect(result.campaigns[0]).not.toHaveProperty('systemPrompt');
+    expect(result.campaigns[0].title).toBe('La Mine Perdue de Phandelver');
+    expect(result.total).toBe(1);
+    expect(result.totalPages).toBe(1);
+    expect(result.hasNext).toBe(false);
+    expect(result.hasPrev).toBe(false);
   });
 
   it('filtre uniquement les campagnes isPublic=true', async () => {
-    vi.mocked(prisma.campaign.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.$transaction).mockResolvedValue([[], 0]);
 
     const result = await getPublicCampaigns();
-    expect(prisma.campaign.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { isPublic: true } })
-    );
-    expect(result).toHaveLength(0);
+    expect(result.campaigns).toHaveLength(0);
+    expect(result.total).toBe(0);
+  });
+
+  it('filtre par thème', async () => {
+    vi.mocked(prisma.$transaction).mockResolvedValue([[mockCampaign], 1]);
+
+    const result = await getPublicCampaigns({ theme: 'HEROIC' });
+
+    expect(prisma.$transaction).toHaveBeenCalledOnce();
+    expect(result.campaigns).toHaveLength(1);
+    expect(result.campaigns[0].theme).toBe('HEROIC');
+  });
+
+  it('calcule correctement la pagination', async () => {
+    vi.mocked(prisma.$transaction).mockResolvedValue([Array(10).fill(mockCampaign), 25]);
+
+    const result = await getPublicCampaigns({ page: 2, limit: 10 });
+    expect(result.page).toBe(2);
+    expect(result.totalPages).toBe(3);
+    expect(result.hasNext).toBe(true);
+    expect(result.hasPrev).toBe(true);
+  });
+
+  it('retourne une liste vide si aucune campagne ne correspond', async () => {
+    vi.mocked(prisma.$transaction).mockResolvedValue([[], 0]);
+
+    const result = await getPublicCampaigns({ search: 'inexistant' });
+    expect(result.campaigns).toHaveLength(0);
+    expect(result.total).toBe(0);
+    expect(result.totalPages).toBe(0);
   });
 });
 

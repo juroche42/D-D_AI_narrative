@@ -20,6 +20,24 @@ export interface CampaignPublic {
   // systemPrompt intentionnellement absent du DTO public — usage interne IA uniquement
 }
 
+export interface CampaignFilters {
+  theme?: string;
+  difficulty?: string;
+  search?: string;
+  isPremium?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedCampaigns {
+  campaigns: CampaignPublic[];
+  total: number;
+  page: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
 /**
  * Valide la cohérence isPublic / isPremium.
  * isPublic=false + isPremium=true est un cas invalide — une campagne premium doit être publique.
@@ -66,15 +84,47 @@ function toCampaignPublic(campaign: {
 }
 
 /**
- * Récupère toutes les campagnes publiques.
- * Sera étendu avec filtres/pagination en US-05-02.
+ * Récupère les campagnes publiques avec filtres et pagination.
+ * Utilise l'index @@index([isPublic, isPremium]) pour les performances.
  */
-export async function getPublicCampaigns(): Promise<CampaignPublic[]> {
-  const campaigns = await prisma.campaign.findMany({
-    where: { isPublic: true },
-    orderBy: [{ isPremium: 'asc' }, { createdAt: 'asc' }],
-  });
-  return campaigns.map(toCampaignPublic);
+export async function getPublicCampaigns(filters: CampaignFilters = {}): Promise<PaginatedCampaigns> {
+  const { theme, difficulty, search, isPremium, page = 1, limit = 12 } = filters;
+
+  const skip = (page - 1) * limit;
+
+  const where = {
+    isPublic: true,
+    ...(theme && { theme: theme as CampaignTheme }),
+    ...(difficulty && { difficulty: difficulty as CampaignDifficulty }),
+    ...(isPremium !== undefined && { isPremium }),
+    ...(search && {
+      OR: [
+        { title: { contains: search, mode: 'insensitive' as const } },
+        { synopsis: { contains: search, mode: 'insensitive' as const } },
+      ],
+    }),
+  };
+
+  const [campaigns, total] = await prisma.$transaction([
+    prisma.campaign.findMany({
+      where,
+      orderBy: [{ isPremium: 'asc' }, { createdAt: 'asc' }],
+      skip,
+      take: limit,
+    }),
+    prisma.campaign.count({ where }),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+
+  return {
+    campaigns: campaigns.map(toCampaignPublic),
+    total,
+    page,
+    totalPages,
+    hasNext: page < totalPages,
+    hasPrev: page > 1,
+  };
 }
 
 /**
