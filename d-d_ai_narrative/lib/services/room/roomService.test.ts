@@ -44,6 +44,7 @@ const MOCK_ROOM = {
   status: RoomStatus.WAITING,
   maxPlayers: 6,
   hostId: 'user_cuid_1',
+  campaignId: null,
   createdAt: new Date('2026-03-03'),
   updatedAt: new Date('2026-03-03'),
   actionMode: ActionMode.VOTE,
