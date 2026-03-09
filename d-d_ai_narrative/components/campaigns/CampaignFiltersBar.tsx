@@ -48,8 +48,9 @@ export function CampaignFiltersBar({
       else params.delete(key);
     });
 
+    const qs = params.toString();
     startTransition(() => {
-      router.push(`${pathname}?${params.toString()}`);
+      router.push(qs ? `${pathname}?${qs}` : pathname);
     });
   }, [router, pathname, searchParams]);
 

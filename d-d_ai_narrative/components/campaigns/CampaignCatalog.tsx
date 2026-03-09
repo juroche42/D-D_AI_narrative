@@ -29,13 +29,15 @@ export function CampaignCatalog({ initialData }: CampaignCatalogProps) {
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
+    const controller = new AbortController();
     startTransition(async () => {
-      const res = await fetch(`/api/campaigns?${searchParams.toString()}`);
+      const res = await fetch(`/api/campaigns?${searchParams.toString()}`, { signal: controller.signal });
       if (res.ok) {
         const json = await res.json();
         setData(json.data);
       }
     });
+    return () => controller.abort();
   }, [searchParams]);
 
   const goToPage = (page: number) => {
