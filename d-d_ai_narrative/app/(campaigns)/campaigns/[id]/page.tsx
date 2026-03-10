@@ -26,9 +26,16 @@ export default async function CampaignDetailPage({ params }: Props) {
   const session = await auth();
 
   let campaign;
+  let backHref = '/campaigns';
+  let backLabel = 'Retour au catalogue';
   try {
     const { systemPrompt: _, ...publicData } = await getCampaignById(id);
-    if (!publicData.isPublic) notFound();
+    const isOwner = session?.user?.id === publicData.creatorId;
+    if (!publicData.isPublic && !isOwner) notFound();
+    if (isOwner && !publicData.isPublic) {
+      backHref  = '/campaigns/mine';
+      backLabel = 'Mes campagnes';
+    }
     campaign = publicData;
   } catch {
     notFound();
@@ -38,6 +45,8 @@ export default async function CampaignDetailPage({ params }: Props) {
     <CampaignDetail
       campaign={campaign}
       isAuthenticated={!!session?.user}
+      backHref={backHref}
+      backLabel={backLabel}
     />
   );
 }

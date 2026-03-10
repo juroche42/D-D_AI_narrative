@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Clock, Users, Swords, Crown } from 'lucide-react';
+import { Clock, Users, Swords, Crown, Lock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -41,6 +41,12 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
                   <Badge className="text-[9px] font-black uppercase tracking-widest bg-amber-950/30 text-amber-400 border border-amber-900/30 flex items-center gap-1">
                     <Crown size={9} />
                     Premium
+                  </Badge>
+                )}
+                {!campaign.isPublic && (
+                  <Badge className="text-[9px] font-black uppercase tracking-widest bg-gray-900/60 text-gray-500 border border-white/10 flex items-center gap-1">
+                    <Lock size={9} />
+                    Privée
                   </Badge>
                 )}
               </div>
