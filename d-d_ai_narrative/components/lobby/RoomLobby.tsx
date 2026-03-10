@@ -13,6 +13,7 @@ import { PlayerList } from '@/components/lobby/PlayerList';
 import { RoomStatusBadge } from '@/components/lobby/RoomStatusBadge';
 import { leaveRoomAction, startGameAction, toggleReadyAction } from '@/app/(lobby)/lobby/actions';
 import { useRoomPlayers } from '@/hooks/useRoomPlayers';
+import { THEME_CONFIG, DIFFICULTY_CONFIG, type CampaignThemeKey, type CampaignDifficultyKey } from '@/lib/constants/campaign';
 
 interface CurrentUser {
   id: string;
@@ -144,14 +145,34 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
               {/* Slots campagne + personnage — placeholders pour US suivantes */}
               <div className="grid md:grid-cols-2 gap-6">
                 {/* US-06-03 — Sélection campagne */}
-                <div className="bg-black/20 p-6 rounded-2xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 min-h-[120px] text-gray-700 cursor-not-allowed">
-                  <Layout size={28} />
-                  <p className="text-xs font-bold uppercase tracking-wide">Choisir un scénario</p>
-                  <p className="text-[10px] uppercase tracking-widest opacity-60">US-06-03</p>
-                </div>
+                {room.campaign ? (
+                  <div className="bg-black/20 p-6 rounded-2xl border border-white/10 flex flex-col gap-3 min-h-30 relative overflow-hidden cursor-not-allowed">
+                    <div className={`absolute top-0 left-0 right-0 h-0.5 ${THEME_CONFIG[room.campaign.theme as CampaignThemeKey]?.bar ?? 'bg-gray-600/60'}`} />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">Scénario sélectionné</p>
+                    <p className="text-sm font-black text-white uppercase italic leading-tight line-clamp-2">
+                      {room.campaign.title}
+                    </p>
+                    <div className="flex gap-2 flex-wrap">
+                      <span className={`text-[9px] font-black uppercase tracking-widest ${THEME_CONFIG[room.campaign.theme as CampaignThemeKey]?.color ?? 'text-gray-400'}`}>
+                        {THEME_CONFIG[room.campaign.theme as CampaignThemeKey]?.label ?? room.campaign.theme}
+                      </span>
+                      <span className="text-gray-700">·</span>
+                      <span className={`text-[9px] font-black uppercase tracking-widest ${DIFFICULTY_CONFIG[room.campaign.difficulty as CampaignDifficultyKey]?.color ?? 'text-gray-400'}`}>
+                        {DIFFICULTY_CONFIG[room.campaign.difficulty as CampaignDifficultyKey]?.label ?? room.campaign.difficulty}
+                      </span>
+                    </div>
+                    <p className="text-[9px] text-gray-700 uppercase tracking-widest mt-auto">Modification — US-06-03</p>
+                  </div>
+                ) : (
+                  <div className="bg-black/20 p-6 rounded-2xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 min-h-30 text-gray-700 cursor-not-allowed">
+                    <Layout size={28} />
+                    <p className="text-xs font-bold uppercase tracking-wide">Choisir un scénario</p>
+                    <p className="text-[10px] uppercase tracking-widest opacity-60">US-06-03</p>
+                  </div>
+                )}
 
                 {/* US-04-04 — Sélection personnage */}
-                <div className="bg-black/20 p-6 rounded-2xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 min-h-[120px] text-gray-700 cursor-not-allowed">
+                <div className="bg-black/20 p-6 rounded-2xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 min-h-30 text-gray-700 cursor-not-allowed">
                   <User size={28} />
                   <p className="text-xs font-bold uppercase tracking-wide">Créer votre héros</p>
                   <p className="text-[10px] uppercase tracking-widest opacity-60">US-04-04</p>
