@@ -6,12 +6,11 @@ declare global {
   var __openai: OpenAI | undefined;
 }
 
-function createOpenAIClient(): OpenAI {
+export function getOpenAI(): OpenAI {
+  if (globalThis.__openai) return globalThis.__openai;
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY manquante dans les variables d'environnement");
   }
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  globalThis.__openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return globalThis.__openai;
 }
-
-export const openai =
-  globalThis.__openai ?? (globalThis.__openai = createOpenAIClient());

@@ -1,20 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CampaignTheme, CampaignDifficulty } from '@/app/generated/prisma/enums';
 
+const mockCreate = vi.fn();
+
 vi.mock('@/lib/openai', () => ({
-  openai: {
+  getOpenAI: () => ({
     chat: {
       completions: {
-        create: vi.fn(),
+        create: mockCreate,
       },
     },
-  },
+  }),
 }));
 
 import { generateSystemPrompt, previewSystemPrompt } from './promptGenerator';
-import { openai } from '@/lib/openai';
-
-const mockCreate = vi.mocked(openai.chat.completions.create);
 
 const validInput = {
   title:         'La Crypte du Roi Oublié',

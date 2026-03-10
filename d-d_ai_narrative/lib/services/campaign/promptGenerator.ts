@@ -1,4 +1,4 @@
-import { openai } from '@/lib/openai';
+import { getOpenAI } from '@/lib/openai';
 import { CampaignTheme, CampaignDifficulty } from '@/app/generated/prisma/client';
 
 interface CampaignInput {
@@ -54,7 +54,7 @@ Il sera injecté au début de CHAQUE appel API au LLM — il doit être dense et
 Répondre UNIQUEMENT avec le system prompt, sans explication ni introduction.
 Réponds exclusivement en français.`;
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: 'gpt-4o-mini',
     max_tokens: 800,
     temperature: 0.7,
