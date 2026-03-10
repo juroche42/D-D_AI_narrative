@@ -1,16 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CampaignTheme, CampaignDifficulty } from '@/app/generated/prisma/enums';
 
-const mockCreate = vi.fn();
+const mockComplete = vi.hoisted(() => vi.fn());
 
-vi.mock('@/lib/openai', () => ({
-  getOpenAI: () => ({
-    chat: {
-      completions: {
-        create: mockCreate,
-      },
-    },
-  }),
+vi.mock('@/lib/services/ai/openAIService', () => ({
+  complete: mockComplete,
 }));
 
 import { generateSystemPrompt, previewSystemPrompt } from './promptGenerator';
@@ -28,40 +22,33 @@ describe('generateSystemPrompt', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('retourne le contenu généré par OpenAI (trimmed)', async () => {
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: '  Tu es le Dungeon Master.  ' } }],
-    } as never);
+    mockComplete.mockResolvedValue({ content: 'Tu es le Dungeon Master.', totalTokens: 100 });
 
     const result = await generateSystemPrompt(validInput);
 
     expect(result).toBe('Tu es le Dungeon Master.');
-    expect(mockCreate).toHaveBeenCalledOnce();
+    expect(mockComplete).toHaveBeenCalledOnce();
   });
 
-  it('appelle gpt-4o-mini avec le bon modèle et les bons paramètres', async () => {
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: 'System prompt' } }],
-    } as never);
+  it('appelle complete avec les bons paramètres (maxTokens, temperature)', async () => {
+    mockComplete.mockResolvedValue({ content: 'System prompt', totalTokens: 50 });
 
     await generateSystemPrompt(validInput);
 
-    expect(mockCreate).toHaveBeenCalledWith(
+    expect(mockComplete).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'gpt-4o-mini',
-        max_tokens: 800,
+        maxTokens:   800,
         temperature: 0.7,
       }),
     );
   });
 
   it('inclut le titre et le thème dans le meta-prompt envoyé', async () => {
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: 'ok' } }],
-    } as never);
+    mockComplete.mockResolvedValue({ content: 'ok', totalTokens: 10 });
 
     await generateSystemPrompt(validInput);
 
-    const call = mockCreate.mock.calls[0][0] as { messages: Array<{ content: string }> };
+    const call = mockComplete.mock.calls[0][0] as { messages: Array<{ content: string }> };
     const content = call.messages[0].content;
     expect(content).toContain('La Crypte du Roi Oublié');
     expect(content).toContain('HEROIC');
@@ -69,21 +56,17 @@ describe('generateSystemPrompt', () => {
   });
 
   it('lève une erreur si le contenu renvoyé est vide', async () => {
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: '' } }],
-    } as never);
+    mockComplete.mockResolvedValue({ content: '', totalTokens: 0 });
 
     await expect(generateSystemPrompt(validInput)).rejects.toThrow(
       'La génération du system prompt a échoué',
     );
   });
 
-  it('lève une erreur si choices est vide', async () => {
-    mockCreate.mockResolvedValue({ choices: [] } as never);
+  it('propage les erreurs de complete()', async () => {
+    mockComplete.mockRejectedValue(new Error('[OpenAI] Rate limit atteint'));
 
-    await expect(generateSystemPrompt(validInput)).rejects.toThrow(
-      'La génération du system prompt a échoué',
-    );
+    await expect(generateSystemPrompt(validInput)).rejects.toThrow('Rate limit');
   });
 });
 
@@ -91,13 +74,11 @@ describe('previewSystemPrompt', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('délègue à generateSystemPrompt et retourne le même résultat', async () => {
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: 'Aperçu du prompt' } }],
-    } as never);
+    mockComplete.mockResolvedValue({ content: 'Aperçu du prompt', totalTokens: 30 });
 
     const result = await previewSystemPrompt(validInput);
 
     expect(result).toBe('Aperçu du prompt');
-    expect(mockCreate).toHaveBeenCalledOnce();
+    expect(mockComplete).toHaveBeenCalledOnce();
   });
 });
