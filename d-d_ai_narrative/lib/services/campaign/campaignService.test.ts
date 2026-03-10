@@ -13,7 +13,7 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 
-vi.mock('@/lib/services/campaign/promptGenerator', () => ({
+vi.mock('./promptGenerator', () => ({
   generateSystemPrompt: vi.fn().mockResolvedValue('Mock system prompt généré par IA'),
 }));
 

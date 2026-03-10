@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
-  ChevronRight, ChevronLeft, Sparkles, Loader2,
-  Eye, EyeOff, Scroll, MapPin, Target, Palette, Users, Clock,
+  Check, Sparkles, Loader2,
+  Eye, EyeOff, MapPin, Target, Users, Clock,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,16 +16,16 @@ import { Separator } from '@/components/ui/separator';
 import { CreateCampaignSchema, type CreateCampaignInput } from '@/lib/validations/campaign';
 
 const STEPS = [
-  { id: 1, label: 'Histoire',      icon: Scroll },
-  { id: 2, label: 'Configuration', icon: Palette },
-  { id: 3, label: 'Aperçu IA',     icon: Sparkles },
+  { id: 1, label: 'Histoire' },
+  { id: 2, label: 'Config.' },
+  { id: 3, label: 'Aperçu IA' },
 ] as const;
 
 const THEMES = [
-  { value: 'HEROIC',        label: '⚔️ Héroïque',     desc: 'Aventure épique et glorieuse' },
-  { value: 'HORROR',        label: '🩸 Horreur',       desc: 'Tension et mort permanente' },
-  { value: 'MYSTERY',       label: '🔍 Mystère',       desc: 'Enquête et révélations' },
-  { value: 'INVESTIGATION', label: '🕵️ Investigation', desc: 'Complot et politique' },
+  { value: 'HEROIC',        label: 'Héroïque',     desc: 'Aventure épique et glorieuse' },
+  { value: 'HORROR',        label: 'Horreur',       desc: 'Tension et mort permanente' },
+  { value: 'MYSTERY',       label: 'Mystère',       desc: 'Enquête et révélations' },
+  { value: 'INVESTIGATION', label: 'Investigation', desc: 'Complot et politique' },
 ] as const;
 
 const DIFFICULTIES = [
@@ -127,37 +127,43 @@ export function CreateCampaignForm() {
     <div className="space-y-8">
 
       {/* Stepper */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-center">
         {STEPS.map((s, i) => {
-          const Icon = s.icon;
-          const isActive = s.id === step;
-          const isDone   = s.id < step;
+          const isCompleted = s.id < step;
+          const isActive    = s.id === step;
           return (
-            <div key={s.id} className="flex items-center gap-2 flex-1">
-              <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                isActive ? 'bg-red-600 text-white' :
-                isDone   ? 'bg-white/10 text-gray-400' :
-                           'bg-white/5 text-gray-700'
-              }`}>
-                <Icon size={12} />
-                {s.label}
-              </div>
-              {i < STEPS.length - 1 && (
-                <ChevronRight size={14} className={isDone ? 'text-gray-500' : 'text-gray-800'} />
+            <div key={s.id} className="flex items-center">
+              {i > 0 && (
+                <div className={`h-px w-16 sm:w-24 transition-colors ${isCompleted ? 'bg-green-500' : 'bg-white/10'}`} />
               )}
+              <div className="flex flex-col items-center gap-1.5">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-black transition-all ${
+                  isCompleted ? 'bg-green-500 text-white' :
+                  isActive    ? 'bg-red-600 text-white' :
+                                'bg-white/10 text-gray-600'
+                }`}>
+                  {isCompleted ? <Check size={14} /> : s.id}
+                </div>
+                <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${
+                  isActive    ? 'text-white' :
+                  isCompleted ? 'text-green-500' :
+                                'text-gray-600'
+                }`}>
+                  {s.label}
+                </span>
+              </div>
             </div>
           );
         })}
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <Card className="bg-[#16161a] border-white/5 rounded-2xl">
-          <CardContent className="p-8 space-y-6">
+        <Card className="bg-[#16161a] border-white/5 rounded-2xl flex flex-col">
+          <CardContent className="p-8 space-y-6 grow">
 
             {/* ── Étape 1 : Histoire ── */}
             {step === 1 && (
               <div className="space-y-6 animate-in fade-in duration-300">
-                <SectionTitle icon={Scroll} label="Informations narratives" />
 
                 <Field label="Titre de la campagne" error={errors.title?.message}>
                   <Input
@@ -212,14 +218,15 @@ export function CreateCampaignForm() {
             {/* ── Étape 2 : Configuration ── */}
             {step === 2 && (
               <div className="space-y-6 animate-in fade-in duration-300">
-                <SectionTitle icon={Palette} label="Configuration de la campagne" />
 
                 <Field label="Thème" error={errors.theme?.message}>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div role="radiogroup" aria-label="Thème" className="grid grid-cols-2 gap-3">
                     {THEMES.map((t) => (
                       <button
                         key={t.value}
                         type="button"
+                        role="radio"
+                        aria-checked={values.theme === t.value}
                         onClick={() => setValue('theme', t.value)}
                         className={`p-4 rounded-xl border text-left transition-all ${
                           values.theme === t.value
@@ -235,11 +242,13 @@ export function CreateCampaignForm() {
                 </Field>
 
                 <Field label="Difficulté" error={errors.difficulty?.message}>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div role="radiogroup" aria-label="Difficulté" className="grid grid-cols-3 gap-3">
                     {DIFFICULTIES.map((d) => (
                       <button
                         key={d.value}
                         type="button"
+                        role="radio"
+                        aria-checked={values.difficulty === d.value}
                         onClick={() => setValue('difficulty', d.value)}
                         className={`p-4 rounded-xl border text-left transition-all ${
                           values.difficulty === d.value
@@ -289,9 +298,11 @@ export function CreateCampaignForm() {
                 <Separator className="bg-white/5" />
 
                 <Field label="Visibilité" hint="Privée par défaut — vous pourrez la publier après création">
-                  <div className="flex items-center gap-4">
+                  <div role="radiogroup" aria-label="Visibilité" className="flex items-center gap-4">
                     <button
                       type="button"
+                      role="radio"
+                      aria-checked={!values.isPublic}
                       onClick={() => setValue('isPublic', false)}
                       className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-black uppercase tracking-widest transition-all ${
                         !values.isPublic
@@ -304,6 +315,8 @@ export function CreateCampaignForm() {
                     </button>
                     <button
                       type="button"
+                      role="radio"
+                      aria-checked={values.isPublic}
                       onClick={() => setValue('isPublic', true)}
                       className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-black uppercase tracking-widest transition-all ${
                         values.isPublic
@@ -322,7 +335,6 @@ export function CreateCampaignForm() {
             {/* ── Étape 3 : Aperçu IA ── */}
             {step === 3 && (
               <div className="space-y-6 animate-in fade-in duration-300">
-                <SectionTitle icon={Sparkles} label="Directives du Dungeon Master IA" />
 
                 <p className="text-xs text-gray-500 font-sans leading-relaxed">
                   L&apos;IA a généré les directives narratives à partir de votre description.
@@ -371,7 +383,7 @@ export function CreateCampaignForm() {
                 </div>
 
                 {submitError && (
-                  <p className="text-[10px] font-black uppercase tracking-widest text-red-500 animate-in fade-in">
+                  <p role="alert" className="text-[10px] font-black uppercase tracking-widest text-red-500 animate-in fade-in">
                     {submitError}
                   </p>
                 )}
@@ -379,21 +391,18 @@ export function CreateCampaignForm() {
             )}
 
           </CardContent>
-        </Card>
 
-        {/* Navigation */}
-        <div className="flex justify-between mt-6">
+          {/* Navigation */}
+          <div className="px-8 pb-8 pt-6 border-t border-white/5 flex justify-between items-center">
           {step > 1 ? (
-            <Button
+            <button
               type="button"
-              variant="outline"
               onClick={() => setStep((s) => s - 1)}
               disabled={isPending || isGenerating}
-              className="border-white/10 hover:bg-white/5 text-gray-400 font-black uppercase tracking-widest text-xs"
+              className="text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-colors disabled:opacity-30"
             >
-              <ChevronLeft size={14} />
-              Retour
-            </Button>
+              Précédent
+            </button>
           ) : (
             <div />
           )}
@@ -403,36 +412,28 @@ export function CreateCampaignForm() {
               type="button"
               onClick={handleNext}
               disabled={isGenerating}
-              className="bg-white/10 hover:bg-white/15 text-white font-black uppercase tracking-widest text-xs"
+              className="bg-red-600 hover:bg-red-500 text-white font-black uppercase tracking-widest text-[10px] px-8 py-3 rounded-2xl shadow-lg shadow-red-600/20"
             >
               {isGenerating
-                ? <><Loader2 size={14} className="animate-spin" /> Génération...</>
-                : <>Continuer <ChevronRight size={14} /></>
+                ? <><Loader2 size={13} className="animate-spin" /> Génération...</>
+                : 'Suivant'
               }
             </Button>
           ) : (
             <Button
               type="submit"
               disabled={isPending || isGenerating}
-              className="bg-red-600 hover:bg-red-500 text-white font-black uppercase tracking-widest text-xs px-8 shadow-lg shadow-red-600/20"
+              className="bg-red-600 hover:bg-red-500 text-white font-black uppercase tracking-widest text-[10px] px-8 py-3 rounded-2xl shadow-lg shadow-red-600/20"
             >
               {isPending
-                ? <><Loader2 size={14} className="animate-spin" /> Création...</>
-                : <><Sparkles size={14} /> Créer la campagne</>
+                ? <><Loader2 size={13} className="animate-spin" /> Création...</>
+                : <><Sparkles size={13} /> Créer</>
               }
             </Button>
           )}
-        </div>
+          </div>
+        </Card>
       </form>
-    </div>
-  );
-}
-
-function SectionTitle({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
-  return (
-    <div className="flex items-center gap-2 pb-2 border-b border-white/5">
-      <Icon size={14} className="text-red-700" />
-      <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{label}</p>
     </div>
   );
 }
