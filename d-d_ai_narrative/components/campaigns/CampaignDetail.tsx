@@ -17,6 +17,8 @@ import { THEME_CONFIG, DIFFICULTY_CONFIG, type CampaignThemeKey, type CampaignDi
 interface CampaignDetailProps {
   campaign: CampaignPublic;
   isAuthenticated: boolean;
+  backHref: string;
+  backLabel: string;
 }
 
 function formatDuration(minutes: number): string {
@@ -26,7 +28,7 @@ function formatDuration(minutes: number): string {
   return m > 0 ? `${h}h ${m}min` : `${h}h`;
 }
 
-export function CampaignDetail({ campaign, isAuthenticated }: CampaignDetailProps) {
+export function CampaignDetail({ campaign, isAuthenticated, backHref, backLabel }: CampaignDetailProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -54,11 +56,11 @@ export function CampaignDetail({ campaign, isAuthenticated }: CampaignDetailProp
     <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
 
       <Link
-        href="/campaigns"
+        href={backHref}
         className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-600 hover:text-white transition-colors"
       >
         <ArrowLeft size={12} />
-        Retour au catalogue
+        {backLabel}
       </Link>
 
       {/* Hero */}

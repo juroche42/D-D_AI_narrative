@@ -5,15 +5,21 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     campaign: {
       findUnique: vi.fn(),
-      findMany: vi.fn(),
-      count: vi.fn(),
+      findMany:   vi.fn(),
+      count:      vi.fn(),
+      create:     vi.fn(),
     },
     $transaction: vi.fn(),
   },
 }));
 
-import { getPublicCampaigns, getCampaignById, validateCampaignVisibility } from './campaignService';
+vi.mock('./promptGenerator', () => ({
+  generateSystemPrompt: vi.fn().mockResolvedValue('Mock system prompt généré par IA'),
+}));
+
+import { getPublicCampaigns, getCampaignById, validateCampaignVisibility, createCampaign, getMyCampaigns } from './campaignService';
 import { prisma } from '@/lib/prisma';
+import { generateSystemPrompt } from './promptGenerator';
 
 const mockCampaign = {
   id: 'campaign_1',
@@ -120,5 +126,99 @@ describe('validateCampaignVisibility', () => {
 
   it('lève 400 si isPublic=false et isPremium=true', () => {
     expect(() => validateCampaignVisibility(false, true)).toThrow();
+  });
+});
+
+const validCreateInput = {
+  title:             'Test Campaign',
+  synopsis:          'Un synopsis de test suffisamment long pour passer la validation Zod',
+  startLocation:     'Phandalin',
+  mainQuest:         'Une quête principale suffisamment longue pour passer la validation Zod',
+  theme:             'HEROIC' as const,
+  difficulty:        'EASY' as const,
+  minPlayers:        2,
+  maxPlayers:        6,
+  estimatedDuration: 120,
+  isPublic:          false,
+  isPremium:         false,
+};
+
+describe('createCampaign', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('retourne CampaignPublic sans systemPrompt', async () => {
+    vi.mocked(prisma.campaign.create).mockResolvedValue({
+      ...mockCampaign,
+      ...validCreateInput,
+      systemPrompt: 'Mock system prompt généré par IA',
+    } as never);
+
+    const result = await createCampaign('user_1', validCreateInput);
+
+    expect(result).not.toHaveProperty('systemPrompt');
+    expect(result.title).toBe('Test Campaign');
+    expect(result.isPublic).toBe(false);
+  });
+
+  it('lève 400 si isPremium=true et isPublic=false — avant appel OpenAI', async () => {
+    await expect(
+      createCampaign('user_1', { ...validCreateInput, isPremium: true, isPublic: false }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+
+    expect(generateSystemPrompt).not.toHaveBeenCalled();
+    expect(prisma.campaign.create).not.toHaveBeenCalled();
+  });
+
+  it('appelle generateSystemPrompt avec les bons paramètres', async () => {
+    vi.mocked(prisma.campaign.create).mockResolvedValue({
+      ...mockCampaign,
+      ...validCreateInput,
+      systemPrompt: 'Mock system prompt généré par IA',
+    } as never);
+
+    await createCampaign('user_1', validCreateInput);
+
+    expect(generateSystemPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title:     'Test Campaign',
+        theme:     'HEROIC',
+        difficulty:'EASY',
+      }),
+    );
+  });
+});
+
+describe('getMyCampaigns', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('retourne toutes les campagnes du créateur sans systemPrompt', async () => {
+    vi.mocked(prisma.campaign.findMany).mockResolvedValue([mockCampaign] as never);
+
+    const result = await getMyCampaigns('user_1');
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).not.toHaveProperty('systemPrompt');
+    expect(result[0].title).toBe(mockCampaign.title);
+    expect(prisma.campaign.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { creatorId: 'user_1' } }),
+    );
+  });
+
+  it('retourne un tableau vide si aucune campagne', async () => {
+    vi.mocked(prisma.campaign.findMany).mockResolvedValue([] as never);
+
+    const result = await getMyCampaigns('user_1');
+
+    expect(result).toHaveLength(0);
+  });
+
+  it('inclut les campagnes privées (isPublic=false)', async () => {
+    vi.mocked(prisma.campaign.findMany).mockResolvedValue([
+      { ...mockCampaign, isPublic: false },
+    ] as never);
+
+    const result = await getMyCampaigns('user_1');
+
+    expect(result[0].isPublic).toBe(false);
   });
 });

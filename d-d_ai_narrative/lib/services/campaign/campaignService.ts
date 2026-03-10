@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { CampaignTheme, CampaignDifficulty } from '@/app/generated/prisma/client';
 import { notFound, badRequest } from '@/lib/api/errors';
+import { generateSystemPrompt } from './promptGenerator';
+import type { CreateCampaignInput } from '@/lib/validations/campaign';
 
 export interface CampaignPublic {
   id: string;
@@ -135,4 +137,50 @@ export async function getCampaignById(id: string): Promise<CampaignPublic & { sy
   const campaign = await prisma.campaign.findUnique({ where: { id } });
   if (!campaign) throw notFound('Campaign');
   return { ...toCampaignPublic(campaign), systemPrompt: campaign.systemPrompt };
+}
+
+/**
+ * Crée une nouvelle campagne personnalisée.
+ * Génère automatiquement le systemPrompt via l'IA (OpenAI).
+ * La campagne est PRIVÉE par défaut (isPublic = false).
+ * @throws AppError 400 si isPublic=false et isPremium=true
+ */
+export async function createCampaign(
+  creatorId: string,
+  data: CreateCampaignInput,
+): Promise<CampaignPublic> {
+  validateCampaignVisibility(data.isPublic, data.isPremium);
+
+  const systemPrompt = await generateSystemPrompt({
+    title:         data.title,
+    synopsis:      data.synopsis,
+    startLocation: data.startLocation,
+    mainQuest:     data.mainQuest,
+    theme:         data.theme as CampaignTheme,
+    difficulty:    data.difficulty as CampaignDifficulty,
+  });
+
+  const campaign = await prisma.campaign.create({
+    data: {
+      ...data,
+      creatorId,
+      systemPrompt,
+      theme:      data.theme as CampaignTheme,
+      difficulty: data.difficulty as CampaignDifficulty,
+    },
+  });
+
+  return toCampaignPublic(campaign);
+}
+
+/**
+ * Récupère toutes les campagnes créées par un utilisateur (publiques + privées).
+ * Usage interne uniquement — auth requise en amont.
+ */
+export async function getMyCampaigns(creatorId: string): Promise<CampaignPublic[]> {
+  const campaigns = await prisma.campaign.findMany({
+    where: { creatorId },
+    orderBy: { createdAt: 'desc' },
+  });
+  return campaigns.map(toCampaignPublic);
 }

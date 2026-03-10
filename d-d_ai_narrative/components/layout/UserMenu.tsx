@@ -1,6 +1,6 @@
 'use client';
 
-import { User } from 'lucide-react';
+import { User, Scroll } from 'lucide-react';
 import Link from 'next/link';
 import {
   DropdownMenu,
@@ -47,6 +47,16 @@ export function UserMenu({ username }: UserMenuProps) {
           >
             <User size={14} />
             Mon Profil
+          </Link>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem asChild>
+          <Link
+            href="/campaigns/mine"
+            className="flex items-center gap-3 px-2 py-2 text-xs font-black uppercase tracking-widest text-gray-300 hover:text-white hover:bg-white/5 rounded-lg cursor-pointer transition-all"
+          >
+            <Scroll size={14} />
+            Mes Campagnes
           </Link>
         </DropdownMenuItem>
 
