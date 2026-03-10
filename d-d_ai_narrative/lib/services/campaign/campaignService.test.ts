@@ -17,7 +17,7 @@ vi.mock('@/lib/services/campaign/promptGenerator', () => ({
   generateSystemPrompt: vi.fn().mockResolvedValue('Mock system prompt généré par IA'),
 }));
 
-import { getPublicCampaigns, getCampaignById, validateCampaignVisibility, createCampaign } from './campaignService';
+import { getPublicCampaigns, getCampaignById, validateCampaignVisibility, createCampaign, getMyCampaigns } from './campaignService';
 import { prisma } from '@/lib/prisma';
 import { generateSystemPrompt } from './promptGenerator';
 
@@ -185,5 +185,40 @@ describe('createCampaign', () => {
         difficulty:'EASY',
       }),
     );
+  });
+});
+
+describe('getMyCampaigns', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('retourne toutes les campagnes du créateur sans systemPrompt', async () => {
+    vi.mocked(prisma.campaign.findMany).mockResolvedValue([mockCampaign] as never);
+
+    const result = await getMyCampaigns('user_1');
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).not.toHaveProperty('systemPrompt');
+    expect(result[0].title).toBe(mockCampaign.title);
+    expect(prisma.campaign.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { creatorId: 'user_1' } }),
+    );
+  });
+
+  it('retourne un tableau vide si aucune campagne', async () => {
+    vi.mocked(prisma.campaign.findMany).mockResolvedValue([] as never);
+
+    const result = await getMyCampaigns('user_1');
+
+    expect(result).toHaveLength(0);
+  });
+
+  it('inclut les campagnes privées (isPublic=false)', async () => {
+    vi.mocked(prisma.campaign.findMany).mockResolvedValue([
+      { ...mockCampaign, isPublic: false },
+    ] as never);
+
+    const result = await getMyCampaigns('user_1');
+
+    expect(result[0].isPublic).toBe(false);
   });
 });

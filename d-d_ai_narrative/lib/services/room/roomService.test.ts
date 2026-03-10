@@ -34,7 +34,7 @@ vi.mock('@/lib/sse/sseManager', () => ({
   broadcastToRoom: vi.fn(),
 }));
 
-import { createRoom, getRoomByCode, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady } from './roomService';
+import { createRoom, getRoomByCode, getRoomPreview, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady } from './roomService';
 import { prisma } from '@/lib/prisma';
 
 const MOCK_ROOM = {
@@ -402,5 +402,41 @@ describe('togglePlayerReady', () => {
 
     await expect(togglePlayerReady('ABC123', 'user_2'))
       .rejects.toMatchObject({ statusCode: 409 });
+  });
+});
+
+describe('getRoomPreview', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NEXTAUTH_URL = 'http://localhost:3000';
+  });
+
+  it('retourne RoomPublic + playerCount pour un salon WAITING', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      ...MOCK_ROOM,
+      _count: { players: 3 },
+    } as never);
+
+    const result = await getRoomPreview('ABC123');
+
+    expect(result.code).toBe('ABC123');
+    expect(result.playerCount).toBe(3);
+    expect(result.status).toBe(RoomStatus.WAITING);
+  });
+
+  it('lève 404 si le code est inconnu', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue(null);
+
+    await expect(getRoomPreview('XXXXXX')).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('lève 410 si le salon n\'est plus en WAITING', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      ...MOCK_ROOM,
+      status: RoomStatus.IN_PROGRESS,
+      _count: { players: 2 },
+    } as never);
+
+    await expect(getRoomPreview('ABC123')).rejects.toMatchObject({ statusCode: 410 });
   });
 });
