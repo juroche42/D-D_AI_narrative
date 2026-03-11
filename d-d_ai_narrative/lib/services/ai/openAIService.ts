@@ -7,8 +7,8 @@ import type {
 
 const DEFAULT_CHAT_MODEL  = process.env.OPENAI_MODEL_CHAT  ?? 'gpt-4o-mini';
 const DEFAULT_EMBED_MODEL = process.env.OPENAI_MODEL_EMBED ?? 'text-embedding-3-small';
-const MAX_RETRIES         = parseInt(process.env.OPENAI_MAX_RETRIES ?? '3', 10);
-const TIMEOUT_MS          = parseInt(process.env.OPENAI_TIMEOUT_MS  ?? '30000', 10);
+const MAX_RETRIES         = parseInt(process.env.OPENAI_MAX_RETRIES ?? '3', 10)     || 3;
+const TIMEOUT_MS          = parseInt(process.env.OPENAI_TIMEOUT_MS  ?? '30000', 10) || 30000;
 
 // ─── Retry helpers ─────────────────────────────────────────────────────────────
 
@@ -66,6 +66,7 @@ async function withRetry<T>(
 function normalizeOpenAIError(error: unknown, context: string): Error {
   if (error instanceof Error) {
     const msg = error.message;
+    if (msg.startsWith('[OpenAI]')) return error; // déjà normalisée — pas de double-préfixe
     if (msg.includes('401') || msg.includes('Incorrect API key'))
       return new Error(`[OpenAI] Clé API invalide ou manquante (${context})`);
     if (msg.includes('429') || msg.includes('rate limit'))

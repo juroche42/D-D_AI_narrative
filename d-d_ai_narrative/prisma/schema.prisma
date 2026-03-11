@@ -189,6 +189,20 @@ enum CampaignDifficulty {
   HARD   // Joueurs confirmés
 }
 
+model VectorDocument {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  source    String
+  chunk     String
+  type      MemoryType
+
+  embedding Unsupported("vector(1536)")?
+
+  @@index([type])
+  @@map("vector_documents")
+}
+
 model Campaign {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
