@@ -1,4 +1,4 @@
-import { getOpenAI } from '@/lib/openai';
+import { complete } from '@/lib/services/ai/openAIService';
 import { CampaignTheme, CampaignDifficulty } from '@/app/generated/prisma/client';
 
 interface CampaignInput {
@@ -54,17 +54,14 @@ Il sera injecté au début de CHAQUE appel API au LLM — il doit être dense et
 Répondre UNIQUEMENT avec le system prompt, sans explication ni introduction.
 Réponds exclusivement en français.`;
 
-  const response = await getOpenAI().chat.completions.create({
-    model: 'gpt-4o-mini',
-    max_tokens: 800,
+  const result = await complete({
+    messages:    [{ role: 'user', content: metaPrompt }],
+    maxTokens:   800,
     temperature: 0.7,
-    messages: [{ role: 'user', content: metaPrompt }],
   });
 
-  const generated = response.choices[0]?.message?.content?.trim();
-  if (!generated) throw new Error('La génération du system prompt a échoué');
-
-  return generated;
+  if (!result.content) throw new Error('La génération du system prompt a échoué');
+  return result.content.trim();
 }
 
 /**
