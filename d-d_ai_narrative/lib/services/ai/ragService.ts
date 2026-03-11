@@ -1,7 +1,7 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { embed } from '@/lib/services/ai/openAIService';
-import { MemoryType, Prisma } from '@/app/generated/prisma/client';
+import { MemoryType } from '@/app/generated/prisma/client';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 

@@ -2,6 +2,7 @@ import { config } from 'dotenv';
 config({ path: '.env' });
 config({ path: '.env.local', override: true });
 
+import { randomUUID } from 'crypto';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../app/generated/prisma/client';
@@ -99,20 +100,23 @@ async function embedBatch(texts: string[]): Promise<number[][]> {
 async function insertDocuments(
   chunks: Array<{ source: string; chunk: string; type: string; embedding: number[] }>,
 ): Promise<void> {
-  for (const doc of chunks) {
-    const vector = `[${doc.embedding.join(',')}]`;
-    await prisma.$executeRaw`
-      INSERT INTO vector_documents (id, "createdAt", source, chunk, type, embedding)
-      VALUES (
-        gen_random_uuid()::text,
-        NOW(),
-        ${doc.source},
-        ${doc.chunk},
-        ${doc.type}::"MemoryType",
-        ${vector}::vector(1536)
-      )
-    `;
-  }
+  await prisma.$transaction(
+    chunks.map((doc) => {
+      const id     = randomUUID();
+      const vector = `[${doc.embedding.join(',')}]`;
+      return prisma.$executeRaw`
+        INSERT INTO vector_documents (id, "createdAt", source, chunk, type, embedding)
+        VALUES (
+          ${id},
+          NOW(),
+          ${doc.source},
+          ${doc.chunk},
+          ${doc.type}::"MemoryType",
+          ${vector}::vector(1536)
+        )
+      `;
+    }),
+  );
 }
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
