@@ -34,25 +34,21 @@ function backoffDelay(attempt: number): Promise<void> {
 }
 
 async function withRetry<T>(
-  fn: () => Promise<T>,
+  fn: (signal: AbortSignal) => Promise<T>,
   maxRetries = MAX_RETRIES,
   context = 'OpenAI call',
 ): Promise<T> {
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId  = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      const timeoutId = setTimeout(() => {
-        // Signal conceptuel — l'abort réel est géré par le SDK openai (timeout option)
-      }, TIMEOUT_MS);
-      try {
-        const result = await fn();
-        clearTimeout(timeoutId);
-        return result;
-      } finally {
-        clearTimeout(timeoutId);
-      }
+      const result = await fn(controller.signal);
+      clearTimeout(timeoutId);
+      return result;
     } catch (error) {
+      clearTimeout(timeoutId);
       lastError = error;
       const isLast = attempt === maxRetries;
       if (isLast || !isRetriable(error)) {
@@ -99,19 +95,19 @@ export async function complete(options: CompletionOptions): Promise<CompletionRe
     temperature = 0.8,
   } = options;
 
-  return withRetry(async () => {
+  return withRetry(async (signal) => {
     const response = await getOpenAI().chat.completions.create({
       model,
       max_tokens:  maxTokens,
       temperature,
       messages:    messages.map((m) => ({ role: m.role, content: m.content })),
-    });
+    }, { signal });
 
-    const content = response.choices[0]?.message?.content ?? '';
-    if (!content) throw new Error('Réponse vide reçue de OpenAI');
+    const trimmedContent = (response.choices[0]?.message?.content ?? '').trim();
+    if (!trimmedContent) throw new Error('Réponse vide reçue de OpenAI');
 
     return {
-      content,
+      content:          trimmedContent,
       model:            response.model,
       promptTokens:     response.usage?.prompt_tokens     ?? 0,
       completionTokens: response.usage?.completion_tokens ?? 0,
@@ -137,20 +133,22 @@ export async function completeStream(options: StreamingOptions): Promise<void> {
   } = options;
 
   try {
-    await withRetry(async () => {
-      const stream = await getOpenAI().chat.completions.create({
+    // Retry couvre uniquement l'initialisation du stream — pas l'itération des chunks.
+    // Une fois le premier chunk émis, retry est désactivé pour éviter la duplication côté client.
+    const stream = await withRetry((signal) =>
+      getOpenAI().chat.completions.create({
         model,
         max_tokens:  maxTokens,
         temperature,
         stream:      true,
         messages:    messages.map((m) => ({ role: m.role, content: m.content })),
-      });
+      }, { signal }),
+    MAX_RETRIES, `completeStream(${model})`);
 
-      for await (const chunk of stream) {
-        const delta = chunk.choices[0]?.delta?.content;
-        if (delta) onChunk(delta);
-      }
-    }, MAX_RETRIES, `completeStream(${model})`);
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content;
+      if (delta) onChunk(delta);
+    }
 
     onDone?.();
   } catch (error) {
@@ -169,11 +167,11 @@ export async function embed(options: EmbeddingOptions): Promise<EmbeddingResult>
 
   if (!text.trim()) throw new Error('Impossible de générer un embedding pour un texte vide');
 
-  return withRetry(async () => {
+  return withRetry(async (signal) => {
     const response = await getOpenAI().embeddings.create({
       model,
       input: text.trim(),
-    });
+    }, { signal });
 
     const vector = response.data[0]?.embedding;
     if (!vector) throw new Error('Embedding vide reçu de OpenAI');

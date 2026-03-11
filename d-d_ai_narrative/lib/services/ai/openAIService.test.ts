@@ -65,6 +65,7 @@ describe('complete', () => {
     await complete({ messages: [{ role: 'user', content: 'test' }] });
     expect(mockChatCreate).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'gpt-4o-mini' }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
 });
@@ -98,6 +99,7 @@ describe('embed', () => {
     await embed({ text: 'test' });
     expect(mockEmbedCreate).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'text-embedding-3-small' }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
 });

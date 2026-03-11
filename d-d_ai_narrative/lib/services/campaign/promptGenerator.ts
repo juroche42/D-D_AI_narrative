@@ -61,7 +61,7 @@ Réponds exclusivement en français.`;
   });
 
   if (!result.content) throw new Error('La génération du system prompt a échoué');
-  return result.content;
+  return result.content.trim();
 }
 
 /**
