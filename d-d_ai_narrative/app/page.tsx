@@ -32,39 +32,96 @@ export default function HomePage() {
         </div>
       </section>
 
-      <div className="mt-12 grid gap-8 md:grid-cols-3">
-        {[
-          {
-            title: 'Narration IA',
-            icon: Scroll,
-            desc: 'Un moteur RAG indexé sur le SRD 5.1 pour une cohérence totale avec les règles officielles.',
-          },
-          {
-            title: 'Multijoueur Temps Réel',
-            icon: Users,
-            desc: "Interagissez avec vos amis grâce au flux SSE. Pas de rafraîchissement, juste de l'action.",
-          },
-          {
-            title: 'Zéro Préparation',
-            icon: Sword,
-            desc: "Oubliez les heures de lecture de manuels. L'IA gère la complexité, vous vivez l'aventure.",
-          },
-        ].map(({ title, icon: Icon, desc }) => (
-          <div
-            key={title}
-            className="group relative overflow-hidden rounded-2xl border border-white/5 bg-[#16161a] p-6 transition-all shadow-xl hover:border-red-900/40"
-          >
-            <div className="absolute right-0 top-0 p-4 opacity-5 transition-opacity group-hover:opacity-10">
-              <Dice5 size={120} />
+      <section className="space-y-10">
+        <div className="space-y-3 text-center">
+          <h3 className="text-3xl md:text-4xl font-black uppercase italic tracking-tight text-white">
+            Fonctionnalites Cles
+          </h3>
+          <p className="mx-auto max-w-3xl text-sm md:text-base font-sans leading-relaxed text-gray-400">
+            Un Dungeon Master IA qui genere des scenarios dynamiques, memorise vos actions
+            via une memoire vectorielle, et adapte l&apos;histoire en temps reel.
+          </p>
+        </div>
+
+        <div className="mt-12 grid gap-8 md:grid-cols-3">
+          {[
+            {
+              title: 'Narration IA',
+              icon: Scroll,
+              desc: 'Un moteur RAG indexé sur le SRD 5.1 pour une cohérence totale avec les règles officielles.',
+            },
+            {
+              title: 'Multijoueur Temps Réel',
+              icon: Users,
+              desc: "Interagissez avec vos amis grâce au flux SSE. Pas de rafraîchissement, juste de l'action.",
+            },
+            {
+              title: 'Zéro Préparation',
+              icon: Sword,
+              desc: "Oubliez les heures de lecture de manuels. L'IA gère la complexité, vous vivez l'aventure.",
+            },
+          ].map(({ title, icon: Icon, desc }) => (
+            <div
+              key={title}
+              className="group relative overflow-hidden rounded-2xl border border-white/5 bg-[#16161a] p-6 transition-all shadow-xl hover:border-red-900/40"
+            >
+              <div className="absolute right-0 top-0 p-4 opacity-5 transition-opacity group-hover:opacity-10">
+                <Dice5 size={120} />
+              </div>
+              <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-2xl border border-red-900/30 bg-red-600/10 transition-transform group-hover:rotate-12">
+                <Icon className="text-red-500" size={20} />
+              </div>
+              <h3 className="mb-4 text-2xl font-bold uppercase tracking-tight text-white">{title}</h3>
+              <p className="text-sm font-sans leading-relaxed text-gray-400">{desc}</p>
             </div>
-            <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-2xl border border-red-900/30 bg-red-600/10 transition-transform group-hover:rotate-12">
-              <Icon className="text-red-500" size={20} />
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-10">
+        <div className="space-y-3 text-center">
+          <h3 className="text-3xl md:text-4xl font-black uppercase italic tracking-tight text-white">
+            Comment Ca Marche
+          </h3>
+          <p className="mx-auto max-w-3xl text-sm md:text-base font-sans leading-relaxed text-gray-400">
+            En quelques minutes, vous passez de l&apos;idee a l&apos;aventure. C&apos;est simple,
+            clair, et pense pour que tout le monde comprenne.
+          </p>
+        </div>
+
+        <div className="grid gap-8 md:grid-cols-3">
+          {[
+            {
+              step: '01',
+              title: 'Creez un salon',
+              desc: "Creez votre groupe et partagez un code pour inviter vos amis.",
+            },
+            {
+              step: '02',
+              title: 'Definissez la campagne',
+              desc: "Donnez le ton de l'aventure et choisissez ce qui vous fait vibrer.",
+            },
+            {
+              step: '03',
+              title: 'Lancez la partie',
+              desc: "Jouez, decidez, et laissez l'histoire evoluer au fil de vos choix.",
+            },
+          ].map((item) => (
+            <div
+              key={item.step}
+              className="relative overflow-hidden rounded-2xl border border-white/5 bg-black/20 p-6 shadow-xl"
+            >
+              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl border border-red-900/30 bg-red-600/10 font-black text-red-500">
+                {item.step}
+              </div>
+              <h4 className="mb-3 text-xl font-black uppercase italic tracking-tight text-white">
+                {item.title}
+              </h4>
+              <p className="text-sm font-sans leading-relaxed text-gray-400">{item.desc}</p>
             </div>
-            <h3 className="mb-4 text-2xl font-bold uppercase tracking-tight text-white">{title}</h3>
-            <p className="text-sm font-sans leading-relaxed text-gray-400">{desc}</p>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
