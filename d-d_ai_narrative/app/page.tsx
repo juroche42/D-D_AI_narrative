@@ -9,7 +9,7 @@ export default function HomePage() {
 
         <div className="relative z-20 mx-auto max-w-3xl space-y-8">
           <div className="flex justify-center">
-            <span className="rounded-full border border-red-500/30 bg-red-600/20 px-6 py-1.5 text-[10px] font-black uppercase tracking-[0.3em] text-red-500 backdrop-blur-sm">
+            <span className="rounded-full border border-red-500/30 bg-red-600/20 px-2.5 py-0.5 text-[7px] font-black uppercase tracking-[0.12em] text-red-500 backdrop-blur-sm sm:px-6 sm:py-1.5 sm:text-[10px] sm:tracking-[0.3em]">
               Maître du Jeu IA de Nouvelle Génération
             </span>
           </div>
@@ -24,7 +24,7 @@ export default function HomePage() {
           <div className="flex flex-col justify-center gap-4 pt-4 sm:flex-row">
             <a
               href="/lobby"
-              className="shrink-0 inline-flex items-center gap-2 px-4 py-4 bg-red-600 hover:bg-red-500 text-white rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-red-600/20"
+              className="shrink-0 inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-3 text-[9px] font-black uppercase tracking-[0.16em] text-white shadow-lg shadow-red-600/20 transition-all active:scale-95 hover:bg-red-500 sm:px-12 sm:py-5 sm:text-lg sm:tracking-widest"
             >
               Lancer l&apos;aventure <Play size={20} fill="currentColor" />
             </a>
