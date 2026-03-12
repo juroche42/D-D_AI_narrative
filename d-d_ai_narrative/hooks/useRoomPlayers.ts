@@ -5,18 +5,22 @@ import type { SSEEvent, SSEPlayer } from '@/lib/sse/sseManager';
 
 type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'error';
 
+type CampaignInfo = { id: string; title: string; theme: string; difficulty: string } | null;
+
 interface UseRoomPlayersResult {
   players: SSEPlayer[];
   roomStatus: string;
   status: ConnectionStatus;
   error: string | null;
+  selectedCampaign: CampaignInfo;
 }
 
-export function useRoomPlayers(roomCode: string): UseRoomPlayersResult {
+export function useRoomPlayers(roomCode: string, initialCampaign?: CampaignInfo): UseRoomPlayersResult {
   const [players, setPlayers] = useState<SSEPlayer[]>([]);
   const [roomStatus, setRoomStatus] = useState<string>('WAITING');
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [error, setError] = useState<string | null>(null);
+  const [selectedCampaign, setSelectedCampaign] = useState<CampaignInfo>(initialCampaign ?? null);
   const retryCount = useRef(0);
   const esRef = useRef<EventSource | null>(null);
 
@@ -40,6 +44,11 @@ export function useRoomPlayers(roomCode: string): UseRoomPlayersResult {
 
           if (data.type === 'room_closed') {
             window.location.href = '/lobby?error=' + encodeURIComponent('Le salon a été fermé');
+            return;
+          }
+
+          if (data.type === 'campaign_selected') {
+            setSelectedCampaign(data.campaign ?? null);
             return;
           }
 
@@ -73,5 +82,5 @@ export function useRoomPlayers(roomCode: string): UseRoomPlayersResult {
     };
   }, [roomCode]);
 
-  return { players, roomStatus, status, error };
+  return { players, roomStatus, status, error, selectedCampaign };
 }

@@ -258,6 +258,71 @@ export async function togglePlayerReady(
   return updated.isReady;
 }
 
+/**
+ * Sélectionne (ou désélectionne) une campagne pour un salon.
+ * Seul le host peut modifier la campagne.
+ * Diffuse campaign_selected via SSE à tous les joueurs connectés.
+ *
+ * @throws 403 si non-host
+ * @throws 404 si salon ou campagne introuvable
+ * @throws 409 si le salon n'est plus en WAITING
+ */
+export async function selectCampaign(
+  roomCode: string,
+  userId: string,
+  campaignId: string | null,
+): Promise<RoomPublic> {
+  const code = roomCode.toUpperCase();
+
+  const room = await prisma.room.findUnique({
+    where: { code },
+    include: {
+      campaign: { select: { id: true, title: true, theme: true, difficulty: true } },
+    },
+  });
+
+  if (!room) throw notFound('Salon');
+  if (room.hostId !== userId) throw forbidden('Seul le host peut choisir la campagne');
+  if (room.status !== RoomStatus.WAITING) throw conflict('Impossible de changer la campagne après le démarrage');
+
+  if (campaignId !== null) {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: { id: true, isPublic: true, creatorId: true },
+    });
+    if (!campaign) throw notFound('Campagne');
+    if (!campaign.isPublic && campaign.creatorId !== userId) {
+      throw forbidden('Accès à cette campagne refusé');
+    }
+  }
+
+  const updatedRoom = await prisma.room.update({
+    where: { code },
+    data: { campaignId },
+    include: {
+      campaign: { select: { id: true, title: true, theme: true, difficulty: true } },
+    },
+  });
+
+  broadcastToRoom(code, {
+    type:      'campaign_selected',
+    roomCode:  code,
+    players:   [],
+    status:    room.status,
+    timestamp: Date.now(),
+    campaign:  updatedRoom.campaign
+      ? {
+          id:         updatedRoom.campaign.id,
+          title:      updatedRoom.campaign.title,
+          theme:      updatedRoom.campaign.theme as string,
+          difficulty: updatedRoom.campaign.difficulty as string,
+        }
+      : null,
+  });
+
+  return toRoomPublic(updatedRoom);
+}
+
 function toRoomPublic(room: {
   id: string;
   code: string;

@@ -1,7 +1,7 @@
 'use server';
 
 import { auth } from '@/lib/auth';
-import { createRoom, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady } from '@/lib/services/room';
+import { createRoom, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady, selectCampaign } from '@/lib/services/room';
 import type { RoomPublic } from '@/lib/services/room';
 import { JoinRoomSchema } from '@/lib/validations/room';
 import { redirect } from 'next/navigation';
@@ -142,6 +142,29 @@ export async function playCampaignAction(campaignId: string): Promise<PlayCampai
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Impossible de créer le salon',
+    };
+  }
+}
+
+export interface SelectCampaignResult {
+  success: boolean;
+  error?: string;
+}
+
+export async function selectCampaignAction(
+  roomCode: string,
+  campaignId: string | null,
+): Promise<SelectCampaignResult> {
+  const session = await auth();
+  if (!session?.user) redirect('/login');
+
+  try {
+    await selectCampaign(roomCode, session.user.id, campaignId);
+    return { success: true };
+  } catch (error: unknown) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erreur lors de la sélection',
     };
   }
 }

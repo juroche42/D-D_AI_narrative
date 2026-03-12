@@ -1,4 +1,4 @@
-export type SSEEventType = 'player_joined' | 'player_left' | 'player_updated' | 'room_closed' | 'room_status_changed';
+export type SSEEventType = 'player_joined' | 'player_left' | 'player_updated' | 'room_closed' | 'room_status_changed' | 'campaign_selected';
 
 export interface SSEPlayer {
   userId: string;
@@ -15,6 +15,7 @@ export interface SSEEvent {
   players: SSEPlayer[];
   status: string;
   timestamp: number;
+  campaign?: { id: string; title: string; theme: string; difficulty: string } | null;
 }
 
 type SSEClient = {

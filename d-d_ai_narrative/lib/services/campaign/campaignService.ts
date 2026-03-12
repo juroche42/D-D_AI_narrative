@@ -129,6 +129,58 @@ export async function getPublicCampaigns(filters: CampaignFilters = {}): Promise
 }
 
 /**
+ * Récupère les campagnes disponibles pour un lobby :
+ * campagnes publiques + campagnes privées créées par le host.
+ * Usage interne lobby uniquement — auth requise en amont.
+ */
+export async function getLobbyAvailableCampaigns(
+  userId: string,
+  filters: CampaignFilters = {},
+): Promise<PaginatedCampaigns> {
+  const { theme, difficulty, search, isPremium, page = 1, limit = 12 } = filters;
+
+  const skip = (page - 1) * limit;
+
+  const baseFilters = {
+    ...(theme && { theme: theme as CampaignTheme }),
+    ...(difficulty && { difficulty: difficulty as CampaignDifficulty }),
+    ...(isPremium !== undefined && { isPremium }),
+    ...(search && {
+      OR: [
+        { title: { contains: search, mode: 'insensitive' as const } },
+        { synopsis: { contains: search, mode: 'insensitive' as const } },
+      ],
+    }),
+  };
+
+  const where = {
+    OR: [{ isPublic: true }, { creatorId: userId }],
+    AND: Object.keys(baseFilters).length > 0 ? [baseFilters] : undefined,
+  };
+
+  const [campaigns, total] = await prisma.$transaction([
+    prisma.campaign.findMany({
+      where,
+      orderBy: [{ isPremium: 'asc' }, { createdAt: 'asc' }],
+      skip,
+      take: limit,
+    }),
+    prisma.campaign.count({ where }),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+
+  return {
+    campaigns: campaigns.map(toCampaignPublic),
+    total,
+    page,
+    totalPages,
+    hasNext: page < totalPages,
+    hasPrev: page > 1,
+  };
+}
+
+/**
  * Récupère une campagne par son ID.
  * Retourne aussi le systemPrompt — usage interne IA uniquement, ne jamais exposer en API publique.
  * @throws AppError 404 si la campagne n'existe pas

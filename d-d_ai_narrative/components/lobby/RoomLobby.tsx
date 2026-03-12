@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Copy, Check, Layout, User,
-  AlertCircle, ExternalLink, LogOut, Loader2, Swords,
+  AlertCircle, ExternalLink, LogOut, Loader2, Swords, Pencil,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { RoomStatusBadge } from '@/components/lobby/RoomStatusBadge';
 import { leaveRoomAction, startGameAction, toggleReadyAction } from '@/app/(lobby)/lobby/actions';
 import { useRoomPlayers } from '@/hooks/useRoomPlayers';
 import { THEME_CONFIG, DIFFICULTY_CONFIG, type CampaignThemeKey, type CampaignDifficultyKey } from '@/lib/constants/campaign';
+import { CampaignSelectModal } from '@/components/lobby/CampaignSelectModal';
 
 interface CurrentUser {
   id: string;
@@ -34,16 +35,17 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
   const [isPendingReady, startReadyTransition] = useTransition();
   const [startError, setStartError] = useState<string | null>(null);
   const [readyError, setReadyError] = useState<string | null>(null);
+  const [showCampaignModal, setShowCampaignModal] = useState(false);
 
-  const { players, roomStatus, status: sseStatus, error: sseError } = useRoomPlayers(room.code);
-  const isHost = currentUser.id === room.hostId;
-  const canStart = isHost && roomStatus === 'WAITING' && players.length >= 2;
+  const { players, roomStatus, status: sseStatus, error: sseError, selectedCampaign } = useRoomPlayers(room.code, room.campaign ?? undefined);
+  const myPlayer = players.find(p => p.userId === currentUser.id);
+  const isHost = myPlayer?.isHost ?? (currentUser.id === room.hostId);
+  const iAmReady = myPlayer?.isReady ?? false;
+  const canStart = isHost && roomStatus === 'WAITING' && players.length >= 2 && selectedCampaign !== null;
 
   const nonHostPlayers = players.filter(p => !p.isHost);
   const readyCount = nonHostPlayers.filter(p => p.isReady).length;
   const allReady = nonHostPlayers.length > 0 && nonHostPlayers.every(p => p.isReady);
-  const myPlayer = players.find(p => p.userId === currentUser.id);
-  const iAmReady = myPlayer?.isReady ?? false;
 
   function handleLeave() {
     startLeaveTransition(async () => {
@@ -142,32 +144,49 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
                 </button>
               </div>
 
-              {/* Slots campagne + personnage — placeholders pour US suivantes */}
+              {/* Slots campagne + personnage */}
               <div className="grid md:grid-cols-2 gap-6">
-                {/* US-06-03 — Sélection campagne */}
-                {room.campaign ? (
-                  <div className="bg-black/20 p-6 rounded-2xl border border-white/10 flex flex-col gap-3 min-h-30 relative overflow-hidden cursor-not-allowed">
-                    <div className={`absolute top-0 left-0 right-0 h-0.5 ${THEME_CONFIG[room.campaign.theme as CampaignThemeKey]?.bar ?? 'bg-gray-600/60'}`} />
+                {/* Sélection campagne */}
+                {selectedCampaign ? (
+                  <div className="bg-black/20 p-6 rounded-2xl border border-white/10 flex flex-col gap-3 min-h-30 relative overflow-hidden group">
+                    <div className={`absolute top-0 left-0 right-0 h-0.5 ${THEME_CONFIG[selectedCampaign.theme as CampaignThemeKey]?.bar ?? 'bg-gray-600/60'}`} />
                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">Scénario sélectionné</p>
                     <p className="text-sm font-black text-white uppercase italic leading-tight line-clamp-2">
-                      {room.campaign.title}
+                      {selectedCampaign.title}
                     </p>
                     <div className="flex gap-2 flex-wrap">
-                      <span className={`text-[9px] font-black uppercase tracking-widest ${THEME_CONFIG[room.campaign.theme as CampaignThemeKey]?.color ?? 'text-gray-400'}`}>
-                        {THEME_CONFIG[room.campaign.theme as CampaignThemeKey]?.label ?? room.campaign.theme}
+                      <span className={`text-[9px] font-black uppercase tracking-widest ${THEME_CONFIG[selectedCampaign.theme as CampaignThemeKey]?.color ?? 'text-gray-400'}`}>
+                        {THEME_CONFIG[selectedCampaign.theme as CampaignThemeKey]?.label ?? selectedCampaign.theme}
                       </span>
                       <span className="text-gray-700">·</span>
-                      <span className={`text-[9px] font-black uppercase tracking-widest ${DIFFICULTY_CONFIG[room.campaign.difficulty as CampaignDifficultyKey]?.color ?? 'text-gray-400'}`}>
-                        {DIFFICULTY_CONFIG[room.campaign.difficulty as CampaignDifficultyKey]?.label ?? room.campaign.difficulty}
+                      <span className={`text-[9px] font-black uppercase tracking-widest ${DIFFICULTY_CONFIG[selectedCampaign.difficulty as CampaignDifficultyKey]?.color ?? 'text-gray-400'}`}>
+                        {DIFFICULTY_CONFIG[selectedCampaign.difficulty as CampaignDifficultyKey]?.label ?? selectedCampaign.difficulty}
                       </span>
                     </div>
-                    <p className="text-[9px] text-gray-700 uppercase tracking-widest mt-auto">Modification — US-06-03</p>
+                    {isHost && roomStatus === 'WAITING' && (
+                      <button
+                        onClick={() => setShowCampaignModal(true)}
+                        className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl"
+                      >
+                        <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white">
+                          <Pencil size={12} /> Changer
+                        </span>
+                      </button>
+                    )}
                   </div>
-                ) : (
-                  <div className="bg-black/20 p-6 rounded-2xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 min-h-30 text-gray-700 cursor-not-allowed">
+                ) : isHost && roomStatus === 'WAITING' ? (
+                  <button
+                    onClick={() => setShowCampaignModal(true)}
+                    className="bg-black/20 p-6 rounded-2xl border border-dashed border-red-900/40 flex flex-col items-center justify-center gap-2 min-h-30 text-gray-600 hover:border-red-600/60 hover:text-red-500 transition-colors"
+                  >
                     <Layout size={28} />
                     <p className="text-xs font-bold uppercase tracking-wide">Choisir un scénario</p>
-                    <p className="text-[10px] uppercase tracking-widest opacity-60">US-06-03</p>
+                  </button>
+                ) : (
+                  <div className="bg-black/20 p-6 rounded-2xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 min-h-30 text-gray-700">
+                    <Layout size={28} />
+                    <p className="text-xs font-bold uppercase tracking-wide">Aucun scénario</p>
+                    <p className="text-[10px] uppercase tracking-widest opacity-60">En attente du host</p>
                   </div>
                 )}
 
@@ -238,8 +257,15 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
                   )}
                 </div>
 
+                {/* Message host : campagne manquante */}
+                {isHost && roomStatus === 'WAITING' && !selectedCampaign && (
+                  <p className="text-[10px] font-black uppercase tracking-widest text-red-700">
+                    Sélectionnez d&apos;abord une campagne
+                  </p>
+                )}
+
                 {/* Message host : compteur prêts */}
-                {isHost && roomStatus === 'WAITING' && (
+                {isHost && roomStatus === 'WAITING' && selectedCampaign && (
                   <p className={`text-[10px] font-black uppercase tracking-widest ${
                     allReady ? 'text-green-500' : 'text-gray-500'
                   }`}>
@@ -307,6 +333,14 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
         </Card>
 
       </div>
+
+      {showCampaignModal && (
+        <CampaignSelectModal
+          roomCode={room.code}
+          currentCampaignId={selectedCampaign?.id ?? null}
+          onClose={() => setShowCampaignModal(false)}
+        />
+      )}
     </div>
   );
 }

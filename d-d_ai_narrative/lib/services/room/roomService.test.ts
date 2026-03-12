@@ -16,6 +16,9 @@ vi.mock('@/lib/prisma', () => ({
       update: vi.fn(),
       delete: vi.fn(),
     },
+    campaign: {
+      findUnique: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -34,8 +37,9 @@ vi.mock('@/lib/sse/sseManager', () => ({
   broadcastToRoom: vi.fn(),
 }));
 
-import { createRoom, getRoomByCode, getRoomPreview, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady } from './roomService';
+import { createRoom, getRoomByCode, getRoomPreview, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady, selectCampaign } from './roomService';
 import { prisma } from '@/lib/prisma';
+import { broadcastToRoom } from '@/lib/sse/sseManager';
 
 const MOCK_ROOM = {
   id: 'room_cuid_1',
@@ -438,5 +442,78 @@ describe('getRoomPreview', () => {
     } as never);
 
     await expect(getRoomPreview('ABC123')).rejects.toMatchObject({ statusCode: 410 });
+  });
+});
+
+const MOCK_CAMPAIGN = {
+  id: 'campaign_1',
+  title: 'La Forêt Maudite',
+  theme: 'FOREST',
+  difficulty: 'NORMAL',
+  isPublic: true,
+  creatorId: 'creator_1',
+};
+
+describe('selectCampaign', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NEXTAUTH_URL = 'http://localhost:3000';
+  });
+
+  it('sélectionne une campagne publique, met à jour la room et broadcast SSE (sans systemPrompt)', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue(MOCK_ROOM as never);
+    vi.mocked(prisma.campaign.findUnique).mockResolvedValue(MOCK_CAMPAIGN as never);
+    vi.mocked(prisma.room.update).mockResolvedValue({
+      ...MOCK_ROOM,
+      campaignId: 'campaign_1',
+      campaign: { id: 'campaign_1', title: 'La Forêt Maudite', theme: 'FOREST', difficulty: 'NORMAL' },
+    } as never);
+
+    const result = await selectCampaign('ABC123', 'user_cuid_1', 'campaign_1');
+
+    expect(result.campaign?.id).toBe('campaign_1');
+    expect(broadcastToRoom).toHaveBeenCalledWith('ABC123', expect.objectContaining({
+      type: 'campaign_selected',
+      campaign: expect.objectContaining({ id: 'campaign_1' }),
+    }));
+    // systemPrompt jamais dans le broadcast
+    const broadcastCall = vi.mocked(broadcastToRoom).mock.calls[0][1];
+    expect(broadcastCall).not.toHaveProperty('systemPrompt');
+  });
+
+  it('lève 403 si un non-host tente de sélectionner', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue(MOCK_ROOM as never);
+
+    await expect(selectCampaign('ABC123', 'stranger', 'campaign_1'))
+      .rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('lève 409 si le salon est IN_PROGRESS', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      ...MOCK_ROOM, status: RoomStatus.IN_PROGRESS,
+    } as never);
+
+    await expect(selectCampaign('ABC123', 'user_cuid_1', 'campaign_1'))
+      .rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('désélectionne (campaignId = null) sans appel campaign.findUnique', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue(MOCK_ROOM as never);
+    vi.mocked(prisma.room.update).mockResolvedValue({
+      ...MOCK_ROOM, campaignId: null, campaign: null,
+    } as never);
+
+    const result = await selectCampaign('ABC123', 'user_cuid_1', null);
+
+    expect(result.campaign).toBeNull();
+    expect(prisma.campaign.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('lève 404 si la campagne est introuvable', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue(MOCK_ROOM as never);
+    vi.mocked(prisma.campaign.findUnique).mockResolvedValue(null);
+
+    await expect(selectCampaign('ABC123', 'user_cuid_1', 'unknown_campaign'))
+      .rejects.toMatchObject({ statusCode: 404 });
   });
 });
