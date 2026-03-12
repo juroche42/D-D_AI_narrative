@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Dice5, Play, Scroll, Users, Sword } from 'lucide-react';
 
 export default function HomePage() {
@@ -22,12 +23,12 @@ export default function HomePage() {
             Vivez des aventures infinies où chaque décision compte. L&apos;IA adapte le monde en temps réel selon vos choix.
           </p>
           <div className="flex flex-col justify-center gap-4 pt-4 sm:flex-row">
-            <a
+            <Link
               href="/lobby"
               className="shrink-0 inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-3 text-[9px] font-black uppercase tracking-[0.16em] text-white shadow-lg shadow-red-600/20 transition-all active:scale-95 hover:bg-red-500 sm:px-12 sm:py-5 sm:text-lg sm:tracking-widest"
             >
               Lancer l&apos;aventure <Play size={20} fill="currentColor" />
-            </a>
+            </Link>
           </div>
         </div>
       </section>
