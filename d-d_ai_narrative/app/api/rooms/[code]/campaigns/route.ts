@@ -21,7 +21,7 @@ export function GET(req: NextRequest, { params }: { params: Promise<{ code: stri
     const { code } = await params;
     const room = await prisma.room.findUnique({
       where: { code: code.toUpperCase() },
-      select: { id: true, hostId: true },
+      select: { id: true },
     });
     if (!room) throw notFound('Salon');
 

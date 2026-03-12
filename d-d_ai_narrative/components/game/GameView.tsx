@@ -10,10 +10,11 @@ interface GameViewProps {
 }
 
 export function GameView({ roomCode, roomName }: GameViewProps) {
-  const { text, status, error, startStream } = useNarrativeStream();
+  const { text, status, error, startStream, reset } = useNarrativeStream();
 
   useEffect(() => {
     startStream(roomCode);
+    return reset;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomCode]);
 

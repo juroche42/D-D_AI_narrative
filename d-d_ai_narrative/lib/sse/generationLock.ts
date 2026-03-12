@@ -33,6 +33,9 @@ export function acquireLock(roomCode: string): boolean {
   const locks = getLocks();
   if (locks.has(roomCode)) return false;
   locks.add(roomCode);
+  // Initialise le buffer atomiquement pour éviter la race condition
+  // où un waiter arrive entre acquireLock et initBuffer
+  getBuffers().set(roomCode, { tokens: [], done: false });
   return true;
 }
 

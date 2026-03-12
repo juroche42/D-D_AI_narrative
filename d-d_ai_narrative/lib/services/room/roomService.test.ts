@@ -314,6 +314,15 @@ describe('updateRoomStatus', () => {
       .rejects.toMatchObject({ statusCode: 403 });
   });
 
+  it('lève 422 si aucune campagne sélectionnée', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      ...MOCK_ROOM, campaignId: null, _count: { players: 3 },
+    } as never);
+
+    await expect(updateRoomStatus('ABC123', 'user_cuid_1', 'IN_PROGRESS'))
+      .rejects.toMatchObject({ statusCode: 422 });
+  });
+
   it('lève 422 si moins de 2 joueurs pour démarrer', async () => {
     vi.mocked(prisma.room.findUnique).mockResolvedValue({
       ...MOCK_ROOM, _count: { players: 1 },

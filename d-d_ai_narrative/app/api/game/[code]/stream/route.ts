@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { getGameContext, generateCampaignIntroduction } from '@/lib/services/ai/narrativeService';
 import {
   acquireLock, releaseLock,
-  initBuffer, pushToken, markGenerationDone, getTokensFrom, isBuffered,
+  pushToken, markGenerationDone, getTokensFrom, isBuffered,
 } from '@/lib/sse/generationLock';
 
 const CACHE_CHUNK  = 10;      // chars par chunk pour le replay depuis DB
@@ -111,12 +111,18 @@ export async function GET(
             await new Promise((r) => setTimeout(r, POLL_MS));
           }
 
-          send({ type: 'done' });
+          // Vérifier si on a réellement fini ou si on a timeout
+          const { done: finallyDone } = getTokensFrom(roomCode, offset);
+          if (finallyDone) {
+            send({ type: 'done' });
+          } else {
+            send({ type: 'error', error: 'Timeout : la génération a pris trop de temps' });
+          }
           return;
         }
 
         // ── Cas 3 : premier appelant — générer via OpenAI ────────────────────────
-        initBuffer(roomCode);
+        // acquireLock initialise déjà le buffer atomiquement
         try {
           await generateCampaignIntroduction(ctx, (token) => {
             pushToken(roomCode, token);
@@ -124,6 +130,9 @@ export async function GET(
           });
           markGenerationDone(roomCode);
           send({ type: 'done' });
+        } catch (genErr) {
+          markGenerationDone(roomCode); // débloque les waiters même en cas d'erreur
+          throw genErr;
         } finally {
           releaseLock(roomCode);
         }

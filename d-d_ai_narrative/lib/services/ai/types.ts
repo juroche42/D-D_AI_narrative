@@ -12,7 +12,7 @@ export interface CompletionOptions {
 
 export interface StreamingOptions extends CompletionOptions {
   onChunk: (chunk: string) => void;
-  onDone?: () => void;
+  onDone?: () => void | Promise<void>;
   onError?: (error: Error) => void;
 }
 
