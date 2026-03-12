@@ -4,18 +4,32 @@ import { success } from '@/lib/api/response';
 import { getLobbyAvailableCampaigns } from '@/lib/services/campaign/campaignService';
 import { CampaignFiltersSchema } from '@/lib/validations/campaign';
 import { auth } from '@/lib/auth';
-import { unauthorized, badRequest } from '@/lib/api/errors';
+import { unauthorized, badRequest, notFound, forbidden } from '@/lib/api/errors';
+import { prisma } from '@/lib/prisma';
 
 /**
  * GET /api/rooms/:code/campaigns
  * Campagnes disponibles pour le lobby : publiques + campagnes privées du host connecté.
- * Auth requise.
+ * Auth requise — l'utilisateur doit être membre du salon.
  * Supporte : ?search=&theme=&difficulty=&isPremium=&page=&limit=
  */
-export function GET(req: NextRequest) {
+export function GET(req: NextRequest, { params }: { params: Promise<{ code: string }> }) {
   return withErrorHandler(async (innerReq: NextRequest) => {
     const session = await auth();
     if (!session?.user) throw unauthorized();
+
+    const { code } = await params;
+    const room = await prisma.room.findUnique({
+      where: { code: code.toUpperCase() },
+      select: { id: true },
+    });
+    if (!room) throw notFound('Salon');
+
+    const isMember = await prisma.roomPlayer.findFirst({
+      where: { roomId: room.id, userId: session.user.id },
+      select: { id: true },
+    });
+    if (!isMember) throw forbidden('Vous n\'êtes pas membre de ce salon');
 
     const { searchParams } = new URL(innerReq.url);
     const raw = {

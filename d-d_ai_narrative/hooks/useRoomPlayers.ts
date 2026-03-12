@@ -47,10 +47,11 @@ export function useRoomPlayers(roomCode: string, initialCampaign?: CampaignInfo)
             return;
           }
 
-          if (data.type === 'campaign_selected') {
+          if ('campaign' in data) {
             setSelectedCampaign(data.campaign ?? null);
-            return;
           }
+
+          if (data.type === 'campaign_selected') return;
 
           setPlayers(data.players);
           setRoomStatus(data.status ?? 'WAITING');

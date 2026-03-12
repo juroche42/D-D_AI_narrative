@@ -34,11 +34,21 @@ export function CampaignSelectModal({
     setIsLoading(true);
     const url = `/api/rooms/${roomCode}/campaigns?limit=50${q ? `&search=${encodeURIComponent(q)}` : ''}`;
     fetch(url)
-      .then((r) => r.json())
-      .then((data) => {
-        setCampaigns(data.data?.campaigns ?? []);
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
       })
-      .catch(() => setError('Impossible de charger les campagnes'))
+      .then((data) => {
+        if (!data?.data?.campaigns || !Array.isArray(data.data.campaigns)) {
+          throw new Error(data?.message ?? 'Format de réponse inattendu');
+        }
+        setError(null);
+        setCampaigns(data.data.campaigns);
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Impossible de charger les campagnes');
+        setCampaigns([]);
+      })
       .finally(() => setIsLoading(false));
   };
 

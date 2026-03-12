@@ -151,7 +151,7 @@ export async function completeStream(options: StreamingOptions): Promise<void> {
       if (delta) onChunk(delta);
     }
 
-    onDone?.();
+    await onDone?.();
   } catch (error) {
     const normalized = normalizeOpenAIError(error, 'completeStream');
     onError?.(normalized);

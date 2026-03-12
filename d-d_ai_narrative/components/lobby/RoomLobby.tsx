@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Copy, Check, Layout, User,
@@ -38,6 +38,14 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
   const [showCampaignModal, setShowCampaignModal] = useState(false);
 
   const { players, roomStatus, status: sseStatus, error: sseError, selectedCampaign } = useRoomPlayers(room.code, room.campaign ?? undefined);
+
+  // Auto-redirect all players when the game starts
+  useEffect(() => {
+    if (roomStatus === 'IN_PROGRESS') {
+      router.push(`/game/${room.code}`);
+    }
+  }, [roomStatus, room.code, router]);
+
   const myPlayer = players.find(p => p.userId === currentUser.id);
   const isHost = myPlayer?.isHost ?? (currentUser.id === room.hostId);
   const iAmReady = myPlayer?.isReady ?? false;
@@ -62,7 +70,9 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
       const result = await startGameAction(room.code);
       if (!result.success) {
         setStartError(result.error ?? 'Impossible de démarrer');
+        return;
       }
+      router.push(`/game/${room.code}`);
     });
   }
 
