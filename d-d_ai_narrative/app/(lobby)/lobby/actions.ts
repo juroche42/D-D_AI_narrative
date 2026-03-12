@@ -64,7 +64,12 @@ export async function startGameAction(roomCode: string): Promise<StartGameResult
   if (!session?.user) redirect('/login');
 
   try {
-    await updateRoomStatus(roomCode, session.user.id, 'IN_PROGRESS');
+    const room = await updateRoomStatus(roomCode, session.user.id, 'IN_PROGRESS');
+    await prisma.gameState.upsert({
+      where:  { roomId: room.id },
+      update: { lastActivityAt: new Date() },
+      create: { roomId: room.id },
+    });
     return { success: true };
   } catch (error: unknown) {
     return {

@@ -14,6 +14,7 @@ vi.mock('@/lib/prisma', () => ({
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
       delete: vi.fn(),
     },
     campaign: {
@@ -289,7 +290,7 @@ describe('updateRoomStatus', () => {
 
   it('host peut passer WAITING → IN_PROGRESS avec ≥ 2 joueurs', async () => {
     vi.mocked(prisma.room.findUnique).mockResolvedValue({
-      ...MOCK_ROOM, _count: { players: 3 },
+      ...MOCK_ROOM, campaignId: 'campaign_1', _count: { players: 3 },
     } as never);
     vi.mocked(prisma.room.update).mockResolvedValue({
       ...MOCK_ROOM, status: 'IN_PROGRESS',
@@ -461,13 +462,16 @@ describe('selectCampaign', () => {
   });
 
   it('sélectionne une campagne publique, met à jour la room et broadcast SSE (sans systemPrompt)', async () => {
-    vi.mocked(prisma.room.findUnique).mockResolvedValue(MOCK_ROOM as never);
-    vi.mocked(prisma.campaign.findUnique).mockResolvedValue(MOCK_CAMPAIGN as never);
-    vi.mocked(prisma.room.update).mockResolvedValue({
+    const updatedRoom = {
       ...MOCK_ROOM,
       campaignId: 'campaign_1',
       campaign: { id: 'campaign_1', title: 'La Forêt Maudite', theme: 'FOREST', difficulty: 'NORMAL' },
-    } as never);
+    };
+    vi.mocked(prisma.room.findUnique)
+      .mockResolvedValueOnce(MOCK_ROOM as never)   // premier appel : fetch room
+      .mockResolvedValueOnce(updatedRoom as never); // second appel : fetch après updateMany
+    vi.mocked(prisma.campaign.findUnique).mockResolvedValue(MOCK_CAMPAIGN as never);
+    vi.mocked(prisma.room.updateMany).mockResolvedValue({ count: 1 } as never);
 
     const result = await selectCampaign('ABC123', 'user_cuid_1', 'campaign_1');
 
@@ -498,10 +502,10 @@ describe('selectCampaign', () => {
   });
 
   it('désélectionne (campaignId = null) sans appel campaign.findUnique', async () => {
-    vi.mocked(prisma.room.findUnique).mockResolvedValue(MOCK_ROOM as never);
-    vi.mocked(prisma.room.update).mockResolvedValue({
-      ...MOCK_ROOM, campaignId: null, campaign: null,
-    } as never);
+    vi.mocked(prisma.room.findUnique)
+      .mockResolvedValueOnce(MOCK_ROOM as never)
+      .mockResolvedValueOnce({ ...MOCK_ROOM, campaignId: null, campaign: null } as never);
+    vi.mocked(prisma.room.updateMany).mockResolvedValue({ count: 1 } as never);
 
     const result = await selectCampaign('ABC123', 'user_cuid_1', null);
 

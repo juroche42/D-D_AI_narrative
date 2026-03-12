@@ -214,6 +214,10 @@ export async function updateRoomStatus(
     throw unprocessable('Il faut au moins 2 joueurs pour démarrer la partie');
   }
 
+  if (newStatus === 'IN_PROGRESS' && !room.campaignId) {
+    throw unprocessable('Sélectionnez une campagne avant de démarrer la partie');
+  }
+
   const updated = await prisma.room.update({
     where: { id: room.id },
     data: { status: newStatus },

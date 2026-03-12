@@ -141,7 +141,8 @@ model Room {
   campaignId String?
   campaign   Campaign? @relation(fields: [campaignId], references: [id])
 
-  players RoomPlayer[]
+  players   RoomPlayer[]
+  gameState GameState?
 
   @@map("rooms")
 }
@@ -201,6 +202,42 @@ model VectorDocument {
 
   @@index([type])
   @@map("vector_documents")
+}
+
+enum NarrativeEntryType {
+  NARRATION
+  ACTION
+  DICE_ROLL
+  SYSTEM
+}
+
+model GameState {
+  id               String           @id @default(cuid())
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  roomId           String           @unique
+  room             Room             @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  currentTurn      Int              @default(1)
+  worldState       Json             @default("{}")
+  narrativeContext String           @default("")
+  lastActivityAt   DateTime         @default(now())
+  narrativeEntries NarrativeEntry[]
+
+  @@map("game_states")
+}
+
+model NarrativeEntry {
+  id          String             @id @default(cuid())
+  createdAt   DateTime           @default(now())
+  gameStateId String
+  gameState   GameState          @relation(fields: [gameStateId], references: [id], onDelete: Cascade)
+  turn        Int
+  type        NarrativeEntryType
+  content     String
+  authorId    String?
+
+  @@index([gameStateId, turn])
+  @@map("narrative_entries")
 }
 
 model Campaign {
