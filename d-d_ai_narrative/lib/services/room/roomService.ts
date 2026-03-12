@@ -296,13 +296,23 @@ export async function selectCampaign(
     }
   }
 
-  const updatedRoom = await prisma.room.update({
-    where: { code },
+  const updateResult = await prisma.room.updateMany({
+    where: { code, status: RoomStatus.WAITING },
     data: { campaignId },
+  });
+
+  if (updateResult.count === 0) {
+    throw conflict('Impossible de changer la campagne après le démarrage');
+  }
+
+  const updatedRoom = await prisma.room.findUnique({
+    where: { code },
     include: {
       campaign: { select: { id: true, title: true, theme: true, difficulty: true } },
     },
   });
+
+  if (!updatedRoom) throw notFound('Salon');
 
   broadcastToRoom(code, {
     type:      'campaign_selected',
