@@ -14,11 +14,11 @@ export default function HomePage() {
               Maître du Jeu IA de Nouvelle Génération
             </span>
           </div>
-          <h2 className="text-5xl font-black uppercase italic leading-[0.9] tracking-tighter text-white md:text-8xl">
+          <h1 className="text-5xl font-black uppercase italic leading-[0.9] tracking-tighter text-white md:text-8xl">
             <span className="block">Forgez votre</span>
             <span className="block text-red-500">propre</span>
             <span className="block">épopée.</span>
-          </h2>
+          </h1>
           <p className="mx-auto max-w-2xl text-lg font-sans leading-relaxed text-gray-400 md:text-xl">
             Vivez des aventures infinies où chaque décision compte. L&apos;IA adapte le monde en temps réel selon vos choix.
           </p>
@@ -36,11 +36,11 @@ export default function HomePage() {
       <section className="space-y-10">
         <div className="space-y-3 text-center">
           <h3 className="text-3xl md:text-4xl font-black uppercase italic tracking-tight text-white">
-            Fonctionnalites Cles
+            Fonctionnalités Clés
           </h3>
           <p className="mx-auto max-w-3xl text-sm md:text-base font-sans leading-relaxed text-gray-400">
-            Un Dungeon Master IA qui genere des scenarios dynamiques, memorise vos actions
-            via une memoire vectorielle, et adapte l&apos;histoire en temps reel.
+            Un Dungeon Master IA qui génère des scénarios dynamiques, mémorise vos actions
+            via une mémoire vectorielle, et adapte l&apos;histoire en temps réel.
           </p>
         </div>
 
@@ -82,11 +82,11 @@ export default function HomePage() {
       <section className="space-y-10">
         <div className="space-y-3 text-center">
           <h3 className="text-3xl md:text-4xl font-black uppercase italic tracking-tight text-white">
-            Comment Ca Marche
+            Comment Ça Marche
           </h3>
           <p className="mx-auto max-w-3xl text-sm md:text-base font-sans leading-relaxed text-gray-400">
-            En quelques minutes, vous passez de l&apos;idee a l&apos;aventure. C&apos;est simple,
-            clair, et pense pour que tout le monde comprenne.
+            En quelques minutes, vous passez de l&apos;idée à l&apos;aventure. C&apos;est simple,
+            clair, et pensé pour que tout le monde comprenne.
           </p>
         </div>
 
@@ -94,18 +94,18 @@ export default function HomePage() {
           {[
             {
               step: '01',
-              title: 'Creez un salon',
-              desc: "Creez votre groupe et partagez un code pour inviter vos amis.",
+              title: 'Créez un salon',
+              desc: 'Créez votre groupe et partagez un code pour inviter vos amis.',
             },
             {
               step: '02',
-              title: 'Definissez la campagne',
+              title: 'Définissez la campagne',
               desc: "Donnez le ton de l'aventure et choisissez ce qui vous fait vibrer.",
             },
             {
               step: '03',
               title: 'Lancez la partie',
-              desc: "Jouez, decidez, et laissez l'histoire evoluer au fil de vos choix.",
+              desc: "Jouez, décidez, et laissez l'histoire évoluer au fil de vos choix.",
             },
           ].map((item) => (
             <div
