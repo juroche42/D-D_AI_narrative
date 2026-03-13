@@ -28,6 +28,7 @@ model User {
   hostedRooms Room[]       @relation("RoomHost")
   roomPlayers RoomPlayer[]
   campaigns   Campaign[]   @relation("CampaignCreator")
+  votes       Vote[]
 }
 
 model Profile {
@@ -222,6 +223,8 @@ model GameState {
   narrativeContext String           @default("")
   lastActivityAt   DateTime         @default(now())
   narrativeEntries NarrativeEntry[]
+  turnActions      TurnAction[]
+  votes            Vote[]
 
   @@map("game_states")
 }
@@ -238,6 +241,43 @@ model NarrativeEntry {
 
   @@index([gameStateId, turn])
   @@map("narrative_entries")
+}
+
+enum TurnActionType {
+  SUGGESTED // Générée par l'IA
+  FREE      // Saisie librement par un joueur
+}
+
+model TurnAction {
+  id          String         @id @default(cuid())
+  createdAt   DateTime       @default(now())
+  gameStateId String
+  gameState   GameState      @relation(fields: [gameStateId], references: [id], onDelete: Cascade)
+  turn        Int
+  type        TurnActionType @default(SUGGESTED)
+  content     String
+  authorId    String?
+  votes       Vote[]
+
+  @@index([gameStateId, turn])
+  @@map("turn_actions")
+}
+
+model Vote {
+  id          String     @id @default(cuid())
+  createdAt   DateTime   @default(now())
+  gameStateId String
+  gameState   GameState  @relation(fields: [gameStateId], references: [id], onDelete: Cascade)
+  roomId      String
+  userId      String
+  actionId    String
+  turn        Int
+  votedAt     DateTime   @default(now())
+  action      TurnAction @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id])
+
+  @@unique([gameStateId, userId, turn])
+  @@map("votes")
 }
 
 model Campaign {
