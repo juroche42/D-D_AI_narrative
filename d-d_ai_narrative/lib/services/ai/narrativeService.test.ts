@@ -26,6 +26,14 @@ vi.mock('@/lib/prisma', () => ({
       deleteMany: mockDeleteManyActions,
       create:     mockCreateTurnAction,
     },
+    $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
+      callback({
+        turnAction: {
+          deleteMany: mockDeleteManyActions,
+          create:     mockCreateTurnAction,
+        },
+      }),
+    ),
   },
 }));
 

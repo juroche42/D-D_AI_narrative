@@ -5,11 +5,9 @@ import { prisma } from '@/lib/prisma';
 import {
   getGameContext,
   generateCampaignIntroduction,
-  generateTurnActions,
-  saveTurnActions,
   generateSceneNarrative,
 } from '@/lib/services/ai/narrativeService';
-import { NarrativeEntryType } from '@/app/generated/prisma/enums';
+import { getOrCreateTurnActions } from '@/lib/services/game/voteService';
 import {
   acquireLock, releaseLock,
   pushToken, markGenerationDone, getTokensFrom, isBuffered,
@@ -148,20 +146,13 @@ export async function GET(
         }
 
         if (type === 'actions') {
-          const lastEntry = await prisma.narrativeEntry.findFirst({
-            where:   { gameStateId: ctx.gameStateId, type: NarrativeEntryType.NARRATION },
-            orderBy: { createdAt: 'desc' },
-          });
-
-          if (!lastEntry) {
-            send({ type: 'error', error: 'Aucune narration trouvée pour ce tour' });
+          try {
+            const saved = await getOrCreateTurnActions(ctx);
+            send({ type: 'actions', actions: saved, turn: ctx.currentTurn });
+          } catch (err) {
+            send({ type: 'error', error: err instanceof Error ? err.message : 'Erreur actions' });
             return;
           }
-
-          const actions = await generateTurnActions(ctx, lastEntry.content);
-          const saved   = await saveTurnActions(ctx.gameStateId, ctx.currentTurn, actions);
-
-          send({ type: 'actions', actions: saved, turn: ctx.currentTurn });
           send({ type: 'done' });
           return;
         }

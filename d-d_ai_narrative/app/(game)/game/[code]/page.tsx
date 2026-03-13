@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { GameView } from '@/components/game/GameView';
+import { NarrativeEntryType } from '@/app/generated/prisma/enums';
 
 interface GamePageProps {
   params: Promise<{ code: string }>;
@@ -47,6 +48,12 @@ export default async function GamePage({ params }: GamePageProps) {
 
   const isFirstTurn = room.gameState.currentTurn === 1 && !room.gameState.narrativeContext;
 
+  const lastEntry = await prisma.narrativeEntry.findFirst({
+    where:   { gameStateId: room.gameState.id, type: NarrativeEntryType.NARRATION },
+    orderBy: { createdAt: 'desc' },
+    select:  { content: true },
+  });
+
   return (
     <GameView
       roomCode={roomCode}
@@ -65,6 +72,7 @@ export default async function GamePage({ params }: GamePageProps) {
         armorClass:     playerEntry.character?.armorClass ?? undefined,
       }}
       isFirstTurn={isFirstTurn}
+      lastNarration={lastEntry?.content}
     />
   );
 }

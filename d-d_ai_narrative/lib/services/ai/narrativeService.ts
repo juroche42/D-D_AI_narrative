@@ -258,26 +258,28 @@ export async function saveTurnActions(
   turn: number,
   actions: string[],
 ): Promise<Array<{ id: string; content: string; type: string }>> {
-  await prisma.turnAction.deleteMany({
-    where: { gameStateId, turn, type: TurnActionType.SUGGESTED },
+  return prisma.$transaction(async (tx) => {
+    await tx.turnAction.deleteMany({
+      where: { gameStateId, turn, type: TurnActionType.SUGGESTED },
+    });
+
+    const created = await Promise.all(
+      actions.map((content) =>
+        tx.turnAction.create({
+          data: {
+            gameStateId,
+            turn,
+            type:     TurnActionType.SUGGESTED,
+            content,
+            authorId: null,
+          },
+          select: { id: true, content: true, type: true },
+        }),
+      ),
+    );
+
+    return created.map((a) => ({ ...a, type: a.type as string }));
   });
-
-  const created = await Promise.all(
-    actions.map((content) =>
-      prisma.turnAction.create({
-        data: {
-          gameStateId,
-          turn,
-          type:     TurnActionType.SUGGESTED,
-          content,
-          authorId: null,
-        },
-        select: { id: true, content: true, type: true },
-      }),
-    ),
-  );
-
-  return created.map((a) => ({ ...a, type: a.type as string }));
 }
 
 // ─── Génération — Scène narrative ───────────────────────────────────────────────
