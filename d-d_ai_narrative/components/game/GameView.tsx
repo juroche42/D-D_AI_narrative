@@ -1,15 +1,16 @@
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
-import { Loader2, Swords, ChevronRight, Clock, User, AlertTriangle, RotateCcw } from 'lucide-react';
+import { Loader2, Swords, ChevronRight, Clock, User, AlertTriangle, RotateCcw, Radio } from 'lucide-react';
 import { useNarrativeStream } from '@/hooks/useNarrativeStream';
+import { useGameEvents } from '@/hooks/useGameEvents';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type GamePhase =
   | 'intro_loading'   // Intro en cours de génération
-  | 'actions_loading' // Actions en cours de génération
-  | 'voting'          // Joueurs votent (timer visible)
+  | 'actions_loading' // Attente des actions via SSE persistant
+  | 'voting'          // Joueurs votent (compteurs en direct)
   | 'scene_loading';  // Scène suivante en cours de génération
 
 export interface CurrentPlayer {
@@ -27,6 +28,7 @@ export interface GameViewProps {
   campaign:      { title: string; theme: string; difficulty: string };
   currentPlayer: CurrentPlayer;
   isFirstTurn:   boolean;
+  lastNarration?: string;
 }
 
 const THEME_GRADIENT: Record<string, string> = {
@@ -38,52 +40,49 @@ const THEME_GRADIENT: Record<string, string> = {
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 
-export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn }: GameViewProps) {
+export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastNarration }: GameViewProps) {
   const [phase, setPhase]               = useState<GamePhase>('intro_loading');
-  const [narrativeHistory, setHistory]  = useState<string[]>([]);
+  const [narrativeHistory, setHistory]  = useState<string[]>(lastNarration ? [lastNarration] : []);
   const [selectedActionId, setSelected] = useState<string | null>(null);
   const [freeAction, setFreeAction]     = useState('');
   const [, startTransition]             = useTransition();
 
-  const intro   = useNarrativeStream(roomCode, 'intro');
-  const actStrm = useNarrativeStream(roomCode, 'actions');
-  const scene   = useNarrativeStream(roomCode, 'scene');
+  const intro      = useNarrativeStream(roomCode, 'intro');
+  const scene      = useNarrativeStream(roomCode, 'scene');
+  const gameEvents = useGameEvents(roomCode);
 
   // ── Flow automatique ─────────────────────────────────────────────────────────
 
-  // 1. Démarrer l'intro au montage (ou actions si tour > 1)
+  // 1. Démarrer l'intro au montage (ou passer directement en actions si tour > 1)
   useEffect(() => {
     if (isFirstTurn) {
       intro.startStream();
     } else {
       setPhase('actions_loading');
-      actStrm.startStream();
     }
     return () => {
       intro.reset();
-      actStrm.reset();
       scene.reset();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 2. Intro terminée → charger les actions
+  // 2. Intro terminée → passer en actions_loading + reconnect SSE pour le snapshot
   useEffect(() => {
     if (intro.status === 'done' && phase === 'intro_loading') {
       if (intro.text) setHistory((h) => [...h, intro.text]);
       setPhase('actions_loading');
-      setTimeout(() => actStrm.startStream(), 600);
+      gameEvents.reconnect();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intro.status]);
 
-  // 3. Actions chargées → passer en mode vote
+  // 3. Actions reçues via SSE persistant → passer en voting
   useEffect(() => {
-    if (actStrm.status === 'done' && phase === 'actions_loading') {
+    if (gameEvents.ready && phase === 'actions_loading') {
       setPhase('voting');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actStrm.status]);
+  }, [gameEvents.ready, phase]);
 
   // 4. Scène terminée → recharger les actions pour le tour suivant
   useEffect(() => {
@@ -93,13 +92,16 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn }: Gam
       setSelected(null);
       setFreeAction('');
       scene.reset();
-      actStrm.reset();
-      setTimeout(() => actStrm.startStream(), 600);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene.status]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
+
+  const handleVote = async () => {
+    if (!selectedActionId) return;
+    await gameEvents.castVote(selectedActionId);
+  };
 
   const handleConfirm = () => {
     if (!selectedActionId && !freeAction.trim()) return;
@@ -125,8 +127,9 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn }: Gam
     (phase === 'intro_loading' && intro.status === 'streaming') ||
     (phase === 'scene_loading' && scene.status === 'streaming');
 
-  const currentError = intro.error ?? scene.error ?? actStrm.error;
-  const turnDisplay  = actStrm.currentTurn > 1 ? actStrm.currentTurn : 1;
+  const currentError   = intro.error ?? scene.error ?? gameEvents.error;
+  const turnDisplay    = gameEvents.currentTurn > 1 ? gameEvents.currentTurn : 1;
+  const myVotedId      = gameEvents.myVote;
 
   // ── Rendu ─────────────────────────────────────────────────────────────────────
 
@@ -202,44 +205,60 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn }: Gam
                 <p className="text-xs font-black uppercase tracking-widest text-white">
                   Quelle est votre réponse ?
                 </p>
-                {/* Timer statique — placeholder US-07 */}
-                <div className="flex items-center gap-1.5 text-gray-500">
-                  <Clock size={12} />
-                  <span className="text-[10px] font-black uppercase tracking-widest font-mono">1:30</span>
+                <div className="flex items-center gap-2">
+                  {/* Badge En direct */}
+                  <div className="flex items-center gap-1 text-green-500 border border-green-900/40 bg-green-950/20 px-2 py-0.5 rounded">
+                    <Radio size={9} className="animate-pulse" />
+                    <span className="text-[9px] font-black uppercase tracking-widest">En direct</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-gray-500">
+                    <Clock size={12} />
+                    <span className="text-[10px] font-black uppercase tracking-widest font-mono">1:30</span>
+                  </div>
                 </div>
               </div>
 
               {/* Actions suggérées */}
               <div className="flex flex-col gap-2">
-                {actStrm.actions.map((action) => (
-                  <button
-                    key={action.id}
-                    onClick={() => { setSelected(action.id); setFreeAction(''); }}
-                    className={`group flex items-center justify-between p-4 rounded-xl border text-left transition-all ${
-                      selectedActionId === action.id
-                        ? 'border-red-700 bg-red-950/20'
-                        : 'border-white/5 bg-black/20 hover:border-white/15'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <ChevronRight
-                        size={14}
-                        className={`flex-shrink-0 transition-colors ${
-                          selectedActionId === action.id ? 'text-red-500' : 'text-gray-700 group-hover:text-gray-500'
-                        }`}
-                      />
-                      <p className={`text-sm font-bold ${
-                        selectedActionId === action.id ? 'text-white' : 'text-gray-300'
-                      }`}>
-                        {action.content}
-                      </p>
-                    </div>
-                    {/* Compteur de votes — placeholder US-07 */}
-                    <span className="text-[9px] font-black uppercase tracking-widest text-gray-700 flex-shrink-0 ml-4">
-                      0 votes
-                    </span>
-                  </button>
-                ))}
+                {gameEvents.actions.map((action) => {
+                  const voteCount = gameEvents.votes.find((v) => v.actionId === action.id)?.count ?? 0;
+                  const isSelected = selectedActionId === action.id;
+                  const isMyVote   = myVotedId === action.id;
+
+                  return (
+                    <button
+                      key={action.id}
+                      onClick={() => { setSelected(action.id); setFreeAction(''); }}
+                      className={`group flex items-center justify-between p-4 rounded-xl border text-left transition-all ${
+                        isSelected
+                          ? 'border-red-700 bg-red-950/20'
+                          : 'border-white/5 bg-black/20 hover:border-white/15'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <ChevronRight
+                          size={14}
+                          className={`flex-shrink-0 transition-colors ${
+                            isSelected ? 'text-red-500' : 'text-gray-700 group-hover:text-gray-500'
+                          }`}
+                        />
+                        <p className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-gray-300'}`}>
+                          {action.content}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                        {isMyVote && (
+                          <span className="text-[8px] font-black uppercase tracking-widest text-red-500 border border-red-900/40 bg-red-950/20 px-1.5 py-0.5 rounded">
+                            Mon vote
+                          </span>
+                        )}
+                        <span className={`text-[9px] font-black uppercase tracking-widest ${voteCount > 0 ? 'text-gray-400' : 'text-gray-700'}`}>
+                          {voteCount} vote{voteCount > 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Action libre */}
@@ -256,13 +275,24 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn }: Gam
                   className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-gray-700 focus:outline-none focus:border-red-800 transition-colors"
                 />
                 <button
-                  onClick={handleConfirm}
+                  onClick={selectedActionId ? handleVote : handleConfirm}
                   disabled={!selectedActionId && !freeAction.trim()}
                   className="px-6 py-2.5 bg-red-700 hover:bg-red-600 disabled:bg-gray-800 disabled:text-gray-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors"
                 >
-                  Voter
+                  {selectedActionId ? 'Voter' : 'Jouer'}
                 </button>
               </div>
+
+              {/* Bouton Jouer l'action (pour les textes libres ou confirmer) */}
+              {(selectedActionId || freeAction.trim()) && (
+                <button
+                  onClick={handleConfirm}
+                  disabled={!selectedActionId && !freeAction.trim()}
+                  className="w-full py-3 border border-red-900/40 bg-red-950/10 hover:bg-red-950/20 disabled:opacity-40 text-red-400 text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors"
+                >
+                  Lancer l&apos;action
+                </button>
+              )}
             </div>
           )}
 
