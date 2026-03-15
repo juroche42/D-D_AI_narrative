@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
-import { Loader2, Swords, ChevronRight, Clock, User, AlertTriangle, RotateCcw, Radio } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Loader2, Swords, ChevronRight, User, AlertTriangle, RotateCcw, Radio } from 'lucide-react';
 import { useNarrativeStream } from '@/hooks/useNarrativeStream';
 import { useGameEvents } from '@/hooks/useGameEvents';
+import { useGameTimer } from '@/hooks/useGameTimer';
+import { VoteTimer } from '@/components/game/VoteTimer';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,11 +47,11 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
   const [narrativeHistory, setHistory]  = useState<string[]>(lastNarration ? [lastNarration] : []);
   const [selectedActionId, setSelected] = useState<string | null>(null);
   const [freeAction, setFreeAction]     = useState('');
-  const [, startTransition]             = useTransition();
 
   const intro      = useNarrativeStream(roomCode, 'intro');
   const scene      = useNarrativeStream(roomCode, 'scene');
   const gameEvents = useGameEvents(roomCode);
+  const timer      = useGameTimer({ roomCode, durationMs: 90_000, active: phase === 'voting' });
 
   // ── Flow automatique ─────────────────────────────────────────────────────────
 
@@ -84,7 +86,17 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
     }
   }, [gameEvents.ready, phase]);
 
-  // 4. Scène terminée → recharger les actions pour le tour suivant
+  // 4. Tour résolu via SSE → lancer la scène
+  useEffect(() => {
+    if (gameEvents.isResolved && gameEvents.winningAction && phase === 'voting') {
+      setPhase('scene_loading');
+      scene.reset();
+      scene.startStream(`/api/game/${roomCode}/stream?type=scene&actionId=${gameEvents.winningAction.id}`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameEvents.isResolved]);
+
+  // 5. Scène terminée → recharger les actions pour le tour suivant
   useEffect(() => {
     if (scene.status === 'done' && phase === 'scene_loading') {
       if (scene.text) setHistory((h) => [...h, scene.text]);
@@ -92,6 +104,7 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
       setSelected(null);
       setFreeAction('');
       scene.reset();
+      gameEvents.reconnect();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene.status]);
@@ -103,17 +116,11 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
     await gameEvents.castVote(selectedActionId);
   };
 
-  const handleConfirm = () => {
-    if (!selectedActionId && !freeAction.trim()) return;
-
-    startTransition(() => {
-      setPhase('scene_loading');
-      const url = selectedActionId
-        ? `/api/game/${roomCode}/stream?type=scene&actionId=${selectedActionId}`
-        : `/api/game/${roomCode}/stream?type=scene&action=${encodeURIComponent(freeAction.trim())}`;
-      scene.reset();
-      scene.startStream(url);
-    });
+  const handleVoteFree = async () => {
+    const text = freeAction.trim();
+    if (!text) return;
+    await gameEvents.voteFree(text);
+    setFreeAction('');
   };
 
   // ── Texte courant ─────────────────────────────────────────────────────────────
@@ -130,6 +137,8 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
   const currentError   = intro.error ?? scene.error ?? gameEvents.error;
   const turnDisplay    = gameEvents.currentTurn > 1 ? gameEvents.currentTurn : 1;
   const myVotedId      = gameEvents.myVote;
+  const isResolved     = gameEvents.isResolved;
+  const winningId      = gameEvents.winningAction?.id;
 
   // ── Rendu ─────────────────────────────────────────────────────────────────────
 
@@ -203,34 +212,47 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
             <div className="bg-black/20 border border-white/5 rounded-3xl p-6 flex flex-col gap-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-black uppercase tracking-widest text-white">
-                  Quelle est votre réponse ?
+                  {isResolved ? 'Action choisie' : 'Quelle est votre réponse ?'}
                 </p>
                 <div className="flex items-center gap-2">
-                  {/* Badge En direct */}
-                  <div className="flex items-center gap-1 text-green-500 border border-green-900/40 bg-green-950/20 px-2 py-0.5 rounded">
-                    <Radio size={9} className="animate-pulse" />
-                    <span className="text-[9px] font-black uppercase tracking-widest">En direct</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-gray-500">
-                    <Clock size={12} />
-                    <span className="text-[10px] font-black uppercase tracking-widest font-mono">1:30</span>
-                  </div>
+                  {!isResolved && (
+                    <div className="flex items-center gap-1 text-green-500 border border-green-900/40 bg-green-950/20 px-2 py-0.5 rounded">
+                      <Radio size={9} className="animate-pulse" />
+                      <span className="text-[9px] font-black uppercase tracking-widest">En direct</span>
+                    </div>
+                  )}
+                  <VoteTimer
+                    secondsLeft={timer.secondsLeft}
+                    progress={timer.progress}
+                    isExpired={timer.isExpired || isResolved}
+                  />
                 </div>
               </div>
 
               {/* Actions suggérées */}
               <div className="flex flex-col gap-2">
                 {gameEvents.actions.map((action) => {
-                  const voteCount = gameEvents.votes.find((v) => v.actionId === action.id)?.count ?? 0;
+                  const voteCount  = gameEvents.votes.find((v) => v.actionId === action.id)?.count ?? 0;
                   const isSelected = selectedActionId === action.id;
                   const isMyVote   = myVotedId === action.id;
+                  const isWinner   = isResolved && winningId === action.id;
+                  const isLoser    = isResolved && winningId !== action.id;
 
                   return (
                     <button
                       key={action.id}
-                      onClick={() => { setSelected(action.id); setFreeAction(''); }}
+                      onClick={() => {
+                        if (isResolved) return;
+                        setSelected(action.id);
+                        setFreeAction('');
+                      }}
+                      disabled={isResolved}
                       className={`group flex items-center justify-between p-4 rounded-xl border text-left transition-all ${
-                        isSelected
+                        isWinner
+                          ? 'border-green-700 bg-green-950/20'
+                          : isLoser
+                          ? 'border-white/5 bg-black/10 opacity-40'
+                          : isSelected
                           ? 'border-red-700 bg-red-950/20'
                           : 'border-white/5 bg-black/20 hover:border-white/15'
                       }`}
@@ -239,10 +261,16 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
                         <ChevronRight
                           size={14}
                           className={`flex-shrink-0 transition-colors ${
-                            isSelected ? 'text-red-500' : 'text-gray-700 group-hover:text-gray-500'
+                            isWinner  ? 'text-green-500'
+                            : isSelected ? 'text-red-500'
+                            : 'text-gray-700 group-hover:text-gray-500'
                           }`}
                         />
-                        <p className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-gray-300'}`}>
+                        <p className={`text-sm font-bold ${
+                          isWinner   ? 'text-green-300'
+                          : isSelected ? 'text-white'
+                          : 'text-gray-300'
+                        }`}>
                           {action.content}
                         </p>
                       </div>
@@ -250,6 +278,11 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
                         {isMyVote && (
                           <span className="text-[8px] font-black uppercase tracking-widest text-red-500 border border-red-900/40 bg-red-950/20 px-1.5 py-0.5 rounded">
                             Mon vote
+                          </span>
+                        )}
+                        {isWinner && (
+                          <span className="text-[8px] font-black uppercase tracking-widest text-green-500 border border-green-900/40 bg-green-950/20 px-1.5 py-0.5 rounded">
+                            Gagnant
                           </span>
                         )}
                         <span className={`text-[9px] font-black uppercase tracking-widest ${voteCount > 0 ? 'text-gray-400' : 'text-gray-700'}`}>
@@ -261,37 +294,28 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
                 })}
               </div>
 
-              {/* Action libre */}
-              <div className="flex gap-2 pt-2 border-t border-white/5">
-                <input
-                  type="text"
-                  value={freeAction}
-                  onChange={(e) => {
-                    setFreeAction(e.target.value);
-                    if (e.target.value) setSelected(null);
-                  }}
-                  placeholder="Action libre..."
-                  maxLength={200}
-                  className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-gray-700 focus:outline-none focus:border-red-800 transition-colors"
-                />
-                <button
-                  onClick={selectedActionId ? handleVote : handleConfirm}
-                  disabled={!selectedActionId && !freeAction.trim()}
-                  className="px-6 py-2.5 bg-red-700 hover:bg-red-600 disabled:bg-gray-800 disabled:text-gray-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors"
-                >
-                  {selectedActionId ? 'Voter' : 'Jouer'}
-                </button>
-              </div>
-
-              {/* Bouton Jouer l'action (pour les textes libres ou confirmer) */}
-              {(selectedActionId || freeAction.trim()) && (
-                <button
-                  onClick={handleConfirm}
-                  disabled={!selectedActionId && !freeAction.trim()}
-                  className="w-full py-3 border border-red-900/40 bg-red-950/10 hover:bg-red-950/20 disabled:opacity-40 text-red-400 text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors"
-                >
-                  Lancer l&apos;action
-                </button>
+              {/* Action libre — masquée si résolu */}
+              {!isResolved && (
+                <div className="flex gap-2 pt-2 border-t border-white/5">
+                  <input
+                    type="text"
+                    value={freeAction}
+                    onChange={(e) => {
+                      setFreeAction(e.target.value);
+                      if (e.target.value) setSelected(null);
+                    }}
+                    placeholder="Action libre..."
+                    maxLength={200}
+                    className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-gray-700 focus:outline-none focus:border-red-800 transition-colors"
+                  />
+                  <button
+                    onClick={selectedActionId ? handleVote : handleVoteFree}
+                    disabled={!selectedActionId && !freeAction.trim()}
+                    className="px-6 py-2.5 bg-red-700 hover:bg-red-600 disabled:bg-gray-800 disabled:text-gray-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors"
+                  >
+                    {selectedActionId ? 'Voter' : 'Jouer'}
+                  </button>
+                </div>
               )}
             </div>
           )}
