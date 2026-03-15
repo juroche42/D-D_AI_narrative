@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
-import { Loader2, Swords, ChevronRight, Clock, User, AlertTriangle, RotateCcw, Radio, Wifi, WifiOff } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Loader2, Swords, ChevronRight, User, AlertTriangle, RotateCcw, Radio } from 'lucide-react';
 import { useNarrativeStream } from '@/hooks/useNarrativeStream';
 import { useGameEvents } from '@/hooks/useGameEvents';
 import { useGameTimer } from '@/hooks/useGameTimer';
@@ -50,11 +50,11 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
   const [narrativeHistory, setHistory]  = useState<string[]>(lastNarration ? [lastNarration] : []);
   const [selectedActionId, setSelected] = useState<string | null>(null);
   const [freeAction, setFreeAction]     = useState('');
-  const [, startTransition]             = useTransition();
 
   const intro      = useNarrativeStream(roomCode, 'intro');
   const scene      = useNarrativeStream(roomCode, 'scene');
   const gameEvents = useGameEvents(roomCode);
+  const timer      = useGameTimer({ roomCode, durationMs: 90_000, active: phase === 'voting' });
 
   // ── Présence des joueurs ────────────────────────────────────────────────────
   // Le joueur courant est toujours en ligne (il regarde l'écran).
@@ -136,18 +136,11 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
     await gameEvents.castVote(selectedActionId);
   };
 
-  const handleConfirm = () => {
-    if (!selectedActionId && !freeAction.trim()) return;
-    if (!allPlayersOnline) return;
-
-    startTransition(() => {
-      setPhase('scene_loading');
-      const url = selectedActionId
-        ? `/api/game/${roomCode}/stream?type=scene&actionId=${selectedActionId}`
-        : `/api/game/${roomCode}/stream?type=scene&action=${encodeURIComponent(freeAction.trim())}`;
-      scene.reset();
-      scene.startStream(url);
-    });
+  const handleVoteFree = async () => {
+    const text = freeAction.trim();
+    if (!text) return;
+    await gameEvents.voteFree(text);
+    setFreeAction('');
   };
 
   // ── Texte courant ─────────────────────────────────────────────────────────────
@@ -340,38 +333,28 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
                 })}
               </div>
 
-              {/* Action libre */}
-              <div className="flex gap-2 pt-2 border-t border-white/5">
-                <input
-                  type="text"
-                  value={freeAction}
-                  onChange={(e) => {
-                    setFreeAction(e.target.value);
-                    if (e.target.value) setSelected(null);
-                  }}
-                  placeholder="Action libre..."
-                  maxLength={200}
-                  disabled={!canPlay}
-                  className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-gray-700 focus:outline-none focus:border-red-800 transition-colors disabled:opacity-40"
-                />
-                <button
-                  onClick={selectedActionId ? handleVote : handleConfirm}
-                  disabled={(!selectedActionId && !freeAction.trim()) || !canPlay}
-                  className="px-6 py-2.5 bg-red-700 hover:bg-red-600 disabled:bg-gray-800 disabled:text-gray-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors"
-                >
-                  {selectedActionId ? 'Voter' : 'Jouer'}
-                </button>
-              </div>
-
-              {/* Bouton Jouer l'action (pour les textes libres ou confirmer) */}
-              {(selectedActionId || freeAction.trim()) && (
-                <button
-                  onClick={handleConfirm}
-                  disabled={(!selectedActionId && !freeAction.trim()) || !canPlay}
-                  className="w-full py-3 border border-red-900/40 bg-red-950/10 hover:bg-red-950/20 disabled:opacity-40 text-red-400 text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors"
-                >
-                  Lancer l&apos;action
-                </button>
+              {/* Action libre — masquée si résolu */}
+              {!isResolved && (
+                <div className="flex gap-2 pt-2 border-t border-white/5">
+                  <input
+                    type="text"
+                    value={freeAction}
+                    onChange={(e) => {
+                      setFreeAction(e.target.value);
+                      if (e.target.value) setSelected(null);
+                    }}
+                    placeholder="Action libre..."
+                    maxLength={200}
+                    className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-gray-700 focus:outline-none focus:border-red-800 transition-colors"
+                  />
+                  <button
+                    onClick={selectedActionId ? handleVote : handleVoteFree}
+                    disabled={!selectedActionId && !freeAction.trim()}
+                    className="px-6 py-2.5 bg-red-700 hover:bg-red-600 disabled:bg-gray-800 disabled:text-gray-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors"
+                  >
+                    {selectedActionId ? 'Voter' : 'Jouer'}
+                  </button>
+                </div>
               )}
                 </>
               )}
