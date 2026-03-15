@@ -2,11 +2,19 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { generateTurnActions, saveTurnActions } from '@/lib/services/ai/narrativeService';
 import type { GameContext } from '@/lib/services/ai/narrativeService';
-import { NarrativeEntryType } from '@/app/generated/prisma/enums';
+import { NarrativeEntryType, TurnActionType } from '@/app/generated/prisma/enums';
 import { broadcastToGame } from '@/lib/sse/sseManager';
 
 export interface VoteCount { actionId: string; count: number }
 export interface TurnActionDTO { id: string; content: string; type: string }
+
+export interface ResolveResult {
+  turn:          number;
+  winningAction: { id: string; content: string };
+  votes:         VoteCount[];
+  resolvedAt:    Date;
+  wasAuto:       boolean;
+}
 
 // ── Dedup Promise map ─────────────────────────────────────────────────────────
 // Garantit qu'une seule génération OpenAI se produit par (gameStateId, turn),
@@ -15,11 +23,18 @@ export interface TurnActionDTO { id: string; content: string; type: string }
 declare global {
   // eslint-disable-next-line no-var
   var __actionGenPromises: Map<string, Promise<TurnActionDTO[]>> | undefined;
+  // eslint-disable-next-line no-var
+  var __resolvePromises: Map<string, Promise<ResolveResult>> | undefined;
 }
 
 function getActionGenPromises(): Map<string, Promise<TurnActionDTO[]>> {
   if (!globalThis.__actionGenPromises) globalThis.__actionGenPromises = new Map();
   return globalThis.__actionGenPromises;
+}
+
+function getResolvePromises(): Map<string, Promise<ResolveResult>> {
+  if (!globalThis.__resolvePromises) globalThis.__resolvePromises = new Map();
+  return globalThis.__resolvePromises;
 }
 
 /**
@@ -63,6 +78,89 @@ export async function getOrCreateTurnActions(ctx: GameContext): Promise<TurnActi
 }
 
 // ── Helpers privés ────────────────────────────────────────────────────────────
+
+export async function resolveVote(
+  roomCode:    string,
+  triggeredBy: 'auto' | 'timer' = 'timer',
+): Promise<ResolveResult> {
+  const key      = roomCode.toUpperCase();
+  const promises = getResolvePromises();
+  const ongoing  = promises.get(key);
+  if (ongoing) return ongoing;
+
+  const promise = (async () => {
+    try {
+      const gameState = await prisma.gameState.findFirst({
+        where:  { room: { code: key } },
+        select: { id: true, currentTurn: true },
+      });
+      if (!gameState) throw new Error('GameState introuvable');
+
+      // Idempotence : une NarrativeEntry ACTION pour ce tour = déjà résolu
+      const alreadyResolved = await prisma.narrativeEntry.findFirst({
+        where: { gameStateId: gameState.id, turn: gameState.currentTurn, type: NarrativeEntryType.ACTION },
+      });
+      if (alreadyResolved) {
+        const [votes, actions] = await Promise.all([
+          getVoteCounts(gameState.id, gameState.currentTurn),
+          prisma.turnAction.findMany({
+            where:  { gameStateId: gameState.id, turn: gameState.currentTurn },
+            select: { id: true, content: true },
+          }),
+        ]);
+        const winner = actions.find((a) => a.content === alreadyResolved.content)
+          ?? actions[0]
+          ?? { id: '', content: alreadyResolved.content };
+        return { turn: gameState.currentTurn, winningAction: winner, votes, resolvedAt: alreadyResolved.createdAt, wasAuto: false };
+      }
+
+      // Calcul du gagnant
+      const [voteCounts, actions] = await Promise.all([
+        getVoteCounts(gameState.id, gameState.currentTurn),
+        prisma.turnAction.findMany({
+          where:   { gameStateId: gameState.id, turn: gameState.currentTurn, type: TurnActionType.SUGGESTED },
+          select:  { id: true, content: true },
+          orderBy: { createdAt: 'asc' },
+        }),
+      ]);
+
+      let winningAction: { id: string; content: string };
+
+      if (voteCounts.length === 0 || actions.length === 0) {
+        const random = actions[Math.floor(Math.random() * actions.length)];
+        winningAction = random ?? { id: '', content: 'Explorer les environs' };
+      } else {
+        const maxCount = Math.max(...voteCounts.map((v) => v.count));
+        const topIds   = voteCounts.filter((v) => v.count === maxCount).map((v) => v.actionId);
+        const winnerId = topIds[Math.floor(Math.random() * topIds.length)];
+        const found    = actions.find((a) => a.id === winnerId);
+        winningAction  = found ?? actions[0] ?? { id: '', content: 'Explorer les environs' };
+      }
+
+      broadcastToGame(key, {
+        type:         'turn_resolved',
+        roomCode:     key,
+        turn:         gameState.currentTurn,
+        timestamp:    Date.now(),
+        winningAction,
+        votes:        voteCounts,
+      });
+
+      return {
+        turn:          gameState.currentTurn,
+        winningAction,
+        votes:         voteCounts,
+        resolvedAt:    new Date(),
+        wasAuto:       triggeredBy === 'auto',
+      };
+    } finally {
+      setTimeout(() => getResolvePromises().delete(key), 5_000);
+    }
+  })();
+
+  promises.set(key, promise);
+  return promise;
+}
 
 async function getVoteCounts(gameStateId: string, turn: number): Promise<VoteCount[]> {
   const rows = await prisma.vote.groupBy({
@@ -118,6 +216,14 @@ export async function castVote(
     { type: 'vote_cast', roomCode, turn, timestamp: Date.now(), votes: voteCounts },
     (uid) => ({ myVote: votesByUser.get(uid) ?? null }),
   );
+
+  // Auto-resolve si tous les joueurs ont voté
+  const totalPlayers = await prisma.roomPlayer.count({ where: { roomId } });
+  if (allVotes.length >= totalPlayers) {
+    resolveVote(roomCode, 'auto').catch((err) =>
+      console.error('[voteService] Auto-resolve error:', err),
+    );
+  }
 }
 
 /**

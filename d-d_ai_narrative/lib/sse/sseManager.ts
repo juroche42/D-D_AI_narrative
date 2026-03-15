@@ -76,18 +76,19 @@ export function getClientCount(roomCode: string): number {
 
 // ─── Game SSE clients ────────────────────────────────────────────────────────
 
-export type GameSSEEventType = 'actions_ready' | 'vote_cast' | 'turn_resolving';
+export type GameSSEEventType = 'actions_ready' | 'vote_cast' | 'turn_resolving' | 'turn_resolved';
 
 export interface VoteCount { actionId: string; count: number }
 
 export interface GameSSEEvent {
-  type:      GameSSEEventType;
-  roomCode:  string;
-  turn:      number;
-  timestamp: number;
-  actions?:  { id: string; content: string; type: string }[];
-  votes?:    VoteCount[];
-  myVote?:   string | null;
+  type:           GameSSEEventType;
+  roomCode:       string;
+  turn:           number;
+  timestamp:      number;
+  actions?:       { id: string; content: string; type: string }[];
+  votes?:         VoteCount[];
+  myVote?:        string | null;
+  winningAction?: { id: string; content: string };
 }
 
 type GameSSEClient = {
