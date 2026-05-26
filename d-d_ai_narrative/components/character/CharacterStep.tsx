@@ -1,102 +1,200 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import type { Race, CharClass } from '@/app/generated/prisma/client';
 import type { RaceDefinition } from '@/lib/constants/races';
+import type { ClassDefinition } from '@/lib/constants/classes';
+import { SelectionCard } from './SelectionCard';
+import { StepIndicator } from './StepIndicator';
+import { CharacterPreview } from './CharacterPreview';
+
+const STEPS = ['Ligné', 'Vocation', 'Identité'] as const;
+
+const DEFAULT_STATS = {
+  strength: 10,
+  dexterity: 10,
+  constitution: 10,
+  intelligence: 10,
+  wisdom: 10,
+  charisma: 10,
+};
 
 interface CharacterStepProps {
-    races: RaceDefinition[];
-    onNext?: (selectedRace: RaceDefinition) => void;
-    onPrev?: () => void;
+  races: RaceDefinition[];
+  classes: ClassDefinition[];
 }
 
-export function CharacterStep({ races, onNext, onPrev }: CharacterStepProps) {
-    const [selectedId, setSelectedId] = useState<string | null>(null);
+export function CharacterStep({ races, classes }: CharacterStepProps) {
+  const router = useRouter();
+  const [currentStep, setCurrentStep] = useState(0);
+  const [selectedRaceId, setSelectedRaceId] = useState<Race | null>(null);
+  const [selectedClassId, setSelectedClassId] = useState<CharClass | null>(null);
+  const [heroName, setHeroName] = useState('');
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const selectedRace = races.find((r) => r.id === selectedId) ?? null;
+  const selectedRace = races.find((r) => r.id === selectedRaceId) ?? null;
+  const selectedClass = classes.find((c) => c.id === selectedClassId) ?? null;
 
-    return (
-        <div>
-            {/* Stepper */}
+  const isNextDisabled =
+    (currentStep === 0 && !selectedRaceId) ||
+    (currentStep === 1 && !selectedClassId) ||
+    (currentStep === 2 && heroName.trim().length < 2) ||
+    isSubmitting;
+
+  const handleNext = async () => {
+    if (currentStep < STEPS.length - 1) {
+      setCurrentStep(currentStep + 1);
+      return;
+    }
+
+    const trimmed = heroName.trim();
+    if (trimmed.length < 2) {
+      setNameError('Le nom doit contenir au moins 2 caractères.');
+      return;
+    }
+    if (trimmed.length > 30) {
+      setNameError('Le nom ne peut pas dépasser 30 caractères.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setApiError(null);
+
+    try {
+      const res = await fetch('/api/characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: trimmed,
+          race: selectedRaceId,
+          class: selectedClassId,
+          stats: DEFAULT_STATS,
+        }),
+      });
+
+      const body = await res.json();
+
+      if (!res.ok) {
+        setApiError(body.message ?? 'Une erreur est survenue.');
+        return;
+      }
+
+      router.push('/');
+    } catch {
+      setApiError('Une erreur réseau est survenue.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentStep > 0) setCurrentStep(currentStep - 1);
+  };
+
+  const handleNameChange = (value: string) => {
+    setHeroName(value);
+    setNameError(null);
+  };
+
+  return (
+    <div>
+      <StepIndicator steps={STEPS} currentStep={currentStep} />
+
+      <div className="bg-[#1a1a1f] border border-white/10 rounded-2xl p-8 mx-36">
+        {/* Étape 0 — Lignée */}
+        {currentStep === 0 && (
+          <div className="grid grid-cols-3 gap-5 mb-8">
+            {races.map((race) => (
+              <SelectionCard
+                key={race.id}
+                name={race.name}
+                description={race.description}
+                tag={race.bonus}
+                isSelected={race.id === selectedRaceId}
+                onClick={() => setSelectedRaceId(race.id)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Étape 1 — Vocation */}
+        {currentStep === 1 && (
+          <div className="grid grid-cols-3 gap-5 mb-8">
+            {classes.map((cls) => (
+              <SelectionCard
+                key={cls.id}
+                name={cls.name}
+                description={cls.description}
+                tag={`COMPÉTENCE : ${cls.competence}`}
+                isSelected={cls.id === selectedClassId}
+                onClick={() => setSelectedClassId(cls.id)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Étape 2 — Identité */}
+        {currentStep === 2 && (
+          <div className="space-y-6 mb-8">
             <div>
-                <div className="flex items-center justify-center mb-10 gap-30">
-                    <div className={"flex flex-col items-center"}>
-                        <div className="w-8 h-8 bg-red-600 text-xs rounded-full flex items-center justify-center text-white font-black">
-                            1
-                        </div>
-                        <p className={"text-red-600 font-semibold"}>Ligné</p>
-                    </div>
-                    <div className={"flex flex-col  items-center"}>
-                        <div className="w-8 h-8 bg-red-600 text-xs rounded-full flex items-center justify-center text-white font-black">
-                            2
-                        </div>
-                        <p>Vocation</p>
-                    </div>
-                    <div className={"flex flex-col  items-center"}>
-                        <div className="w-8 h-8 bg-red-600 text-xs rounded-full flex items-center justify-center text-white font-black">
-                            3
-                        </div>
-                        <p>Identité</p>
-                    </div>
-                </div>
+              <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">
+                Nom de votre héros
+              </label>
+              <input
+                type="text"
+                value={heroName}
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder="Entrez un nom..."
+                maxLength={30}
+                className="w-full bg-[#0f0f12] border border-white/10 rounded-xl px-4 py-3 text-white
+                  placeholder:text-gray-600 focus:outline-none focus:border-red-600 transition-colors"
+              />
+              {nameError && (
+                <p className="mt-1 text-xs text-red-400">{nameError}</p>
+              )}
             </div>
-            <div className="bg-[#1a1a1f] border border-white/10 rounded-2xl p-8 mx-36">
-                {/* Race Grid */}
-                <div className="grid grid-cols-3 gap-5 mb-8">
-                    {races.map((race) => {
-                        const isSelected = race.id === selectedId;
-                        return (
-                            <button
-                                key={race.id}
-                                onClick={() => setSelectedId(race.id)}
-                                className={`
-                    relative text-left bg-[#1a1a1f] rounded-2xl py-7 px-6 space-y-3
-                    border transition-all duration-200
-                    ${
-                                    isSelected
-                                        ? 'border-red-600 shadow-[inset_0_0_0_1px_rgb(220,38,38)] bg-[#1f1618]'
-                                        : 'border-white/10 hover:border-white/25'
-                                }
-                  `}
-                            >
-                                <div className="space-y-1.5">
-                                    <p className="text-lg font-black text-white tracking-wide uppercase">
-                                        {race.name}
-                                    </p>
-                                    <p className="text-xs text-gray-500 leading-relaxed">
-                                        {race.description}
-                                    </p>
-                                </div>
-                            </button>
-                        );
-                    })}
-                </div>
 
-                {/* Divider */}
-                <hr className="border-white/10 mb-6" />
+            <CharacterPreview
+              name={heroName}
+              raceName={selectedRace?.name ?? ''}
+              className={selectedClass?.name ?? ''}
+              stats={DEFAULT_STATS}
+            />
 
-                {/* Navigation */}
-                <div className="flex justify-between items-center">
-                    <button
-                        onClick={onPrev}
-                        disabled={!onPrev}
-                        className="px-6 py-4 text-white/40 font-black uppercase tracking-widest text-xs
-                transition-all hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                        Précédent
-                    </button>
+            {apiError && (
+              <p className="text-red-400 text-sm text-center">{apiError}</p>
+            )}
+          </div>
+        )}
 
-                    <button
-                        onClick={() => selectedRace && onNext?.(selectedRace)}
-                        disabled={!selectedRace}
-                        className="py-4 px-8 bg-red-600 hover:bg-red-500 disabled:opacity-40
-                disabled:cursor-not-allowed text-white rounded-2xl font-black uppercase
-                tracking-widest text-sm transition-all shadow-lg shadow-red-600/20
-                active:scale-95"
-                    >
-                        Suivant
-                    </button>
-                </div>
-            </div>
+        <hr className="border-white/10 mb-6" />
+
+        <div className="flex justify-between items-center">
+          <button
+            type="button"
+            onClick={handlePrev}
+            disabled={currentStep === 0}
+            className="px-6 py-4 text-white/40 font-black uppercase tracking-widest text-xs
+              transition-all hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            Précédent
+          </button>
+
+          <button
+            type="button"
+            onClick={handleNext}
+            disabled={isNextDisabled}
+            className="py-4 px-8 bg-red-600 hover:bg-red-500 disabled:opacity-40
+              disabled:cursor-not-allowed text-white rounded-2xl font-black uppercase
+              tracking-widest text-sm transition-all shadow-lg shadow-red-600/20 active:scale-95"
+          >
+            {isSubmitting ? 'Création…' : currentStep === STEPS.length - 1 ? 'Finaliser' : 'Suivant'}
+          </button>
         </div>
-        );
+      </div>
+    </div>
+  );
 }

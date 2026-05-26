@@ -4,6 +4,7 @@ export interface ClassDefinition {
   id: CharClass;
   name: string;
   description: string;
+  competence: string;
 }
 
 /**
@@ -14,32 +15,38 @@ export const CLASS_DEFINITIONS: ClassDefinition[] = [
   {
     id: CharClass.FIGHTER,
     name: 'Guerrier',
-    description: `Maître du combat martial.`,
+    description: 'Maître du combat martial.',
+    competence: 'SECOND SOUFFLE',
   },
   {
     id: CharClass.MAGE,
     name: 'Mage',
-    description: `Lanceur de sortis arcaniques.`,
+    description: 'Lanceur de sorts arcaniques.',
+    competence: 'RÉCUPÉRATION ARCANIQUE',
   },
   {
     id: CharClass.ROGUE,
     name: 'Voleur',
-    description: `Expert en discrétion.`,
+    description: 'Expert en discrétion.',
+    competence: 'ATTAQUE FURTIVE',
   },
   {
     id: CharClass.CLERIC,
     name: 'Clerc',
-    description: `Gardien divin et soigneur.`,
+    description: 'Gardien divin et soigneur.',
+    competence: 'DOMAINE DIVIN',
   },
   {
     id: CharClass.BARD,
     name: 'Barde',
-    description: `Musicien et manipulateur.`,
+    description: 'Musicien et manipulateur.',
+    competence: 'INSPIRATION BARDIQUE',
   },
   {
     id: CharClass.RANGER,
     name: 'Rôdeur',
-    description: `Chasseur des étendues sauvages.`,
+    description: 'Chasseur des étendues sauvages.',
+    competence: 'EXPLORATEUR NÉ',
   },
 ];
 

@@ -3,8 +3,8 @@ import { CreateCharacterSchema } from './character';
 
 const VALID_CHARACTER = {
   name: 'Thorin Rochefer',
-  race: 'Dwarf',
-  class: 'Fighter',
+  race: 'DWARF',
+  class: 'FIGHTER',
   stats: {
     strength: 18,
     dexterity: 12,
