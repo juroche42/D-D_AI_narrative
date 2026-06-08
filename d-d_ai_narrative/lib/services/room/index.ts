@@ -1,2 +1,2 @@
-export { createRoom, getRoomByCode, getRoomPreview, joinRoom } from './roomService';
+export { createRoom, getRoomByCode, getRoomPreview, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady, selectCampaign } from './roomService';
 export type { RoomPublic } from './roomService';

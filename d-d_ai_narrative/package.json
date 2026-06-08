@@ -17,7 +17,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "index:srd": "tsx scripts/indexSrd.ts",
+    "index:srd:force": "tsx scripts/indexSrd.ts --force"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -32,6 +37,8 @@
     "@prisma/adapter-pg": "^7.4.1",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "bcrypt": "^6.0.0",
     "class-variance-authority": "^0.7.1",
@@ -41,6 +48,7 @@
     "nanoid": "^5.1.6",
     "next": "16.1.6",
     "next-auth": "5.0.0-beta.30",
+    "openai": "^6.27.0",
     "pg": "^8.18.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",

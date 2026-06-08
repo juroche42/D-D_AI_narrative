@@ -129,6 +129,7 @@ export function UserProfilePage() {
       }
 
       applyUser(json.data);
+      setActivePanel(null);
       setSuccess('Profil mis à jour');
     } catch {
       setError('Erreur réseau lors de la mise à jour du profil');
@@ -161,6 +162,7 @@ export function UserProfilePage() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
+      setActivePanel(null);
       setSuccess('Mot de passe mis à jour');
     } catch {
       setError('Erreur réseau lors de la mise à jour du mot de passe');

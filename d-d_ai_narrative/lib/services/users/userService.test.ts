@@ -193,4 +193,35 @@ describe('updateUserMe', () => {
 
     await expect(updateUserMe('missing', { username: 'hero' })).rejects.toMatchObject(notFound('User'));
   });
+
+  it('404 si le profil est absent (user trouvé mais pas de profil)', async () => {
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([{ id: 'user_1', username: 'old', password: 'hash' }])
+      .mockResolvedValueOnce([]);
+
+    await expect(updateUserMe('user_1', { username: 'hero' })).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('met à jour le profil (bio) → appelle $executeRaw pour Profile uniquement', async () => {
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([{ id: 'user_1', username: 'old', password: 'hash' }])
+      .mockResolvedValueOnce([{ userId: 'user_1' }])
+      .mockResolvedValueOnce([
+        {
+          id: 'user_1', username: 'old',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-01-05T00:00:00.000Z'),
+          profileId: 'profile_1', avatarUrl: '', bio: 'Nouveau bio',
+          language: 'FR', darkMode: false,
+          totalGames: 0, totalTurns: 0, monstersDefeated: 0, naturalCrits: 0,
+          profileUpdatedAt: new Date('2026-01-05T00:00:00.000Z'),
+        },
+      ]);
+    vi.mocked(prisma.$executeRaw).mockResolvedValue(1 as never);
+
+    const result = await updateUserMe('user_1', { bio: 'Nouveau bio' });
+
+    expect(prisma.$executeRaw).toHaveBeenCalledOnce();
+    expect(result.profile.bio).toBe('Nouveau bio');
+  });
 });

@@ -27,6 +27,8 @@ model User {
 
   hostedRooms Room[]       @relation("RoomHost")
   roomPlayers RoomPlayer[]
+  campaigns   Campaign[]   @relation("CampaignCreator")
+  votes       Vote[]
 }
 
 model Profile {
@@ -137,7 +139,11 @@ model Room {
   hostId String
   host   User   @relation("RoomHost", fields: [hostId], references: [id])
 
-  players RoomPlayer[]
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id])
+
+  players   RoomPlayer[]
+  gameState GameState?
 
   @@map("rooms")
 }
@@ -170,4 +176,133 @@ enum MemoryType {
 enum ProfileLanguage {
   FR
   EN
+}
+
+enum CampaignTheme {
+  HORROR        // Horreur et suspense
+  HEROIC        // Aventure héroïque classique
+  MYSTERY       // Mystère et investigation
+  INVESTIGATION // Enquête et déduction
+}
+
+enum CampaignDifficulty {
+  EASY   // Accessible aux débutants
+  MEDIUM // Expérience D&D recommandée
+  HARD   // Joueurs confirmés
+}
+
+model VectorDocument {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  source    String
+  chunk     String
+  type      MemoryType
+
+  embedding Unsupported("vector(1536)")?
+
+  @@index([type])
+  @@map("vector_documents")
+}
+
+enum NarrativeEntryType {
+  NARRATION
+  ACTION
+  DICE_ROLL
+  SYSTEM
+}
+
+model GameState {
+  id               String           @id @default(cuid())
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  roomId           String           @unique
+  room             Room             @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  currentTurn      Int              @default(1)
+  worldState       Json             @default("{}")
+  narrativeContext String           @default("")
+  lastActivityAt   DateTime         @default(now())
+  narrativeEntries NarrativeEntry[]
+  turnActions      TurnAction[]
+  votes            Vote[]
+
+  @@map("game_states")
+}
+
+model NarrativeEntry {
+  id          String             @id @default(cuid())
+  createdAt   DateTime           @default(now())
+  gameStateId String
+  gameState   GameState          @relation(fields: [gameStateId], references: [id], onDelete: Cascade)
+  turn        Int
+  type        NarrativeEntryType
+  content     String
+  authorId    String?
+
+  @@index([gameStateId, turn])
+  @@map("narrative_entries")
+}
+
+enum TurnActionType {
+  SUGGESTED // Générée par l'IA
+  FREE      // Saisie librement par un joueur
+}
+
+model TurnAction {
+  id          String         @id @default(cuid())
+  createdAt   DateTime       @default(now())
+  gameStateId String
+  gameState   GameState      @relation(fields: [gameStateId], references: [id], onDelete: Cascade)
+  turn        Int
+  type        TurnActionType @default(SUGGESTED)
+  content     String
+  authorId    String?
+  votes       Vote[]
+
+  @@index([gameStateId, turn])
+  @@map("turn_actions")
+}
+
+model Vote {
+  id          String     @id @default(cuid())
+  createdAt   DateTime   @default(now())
+  gameStateId String
+  gameState   GameState  @relation(fields: [gameStateId], references: [id], onDelete: Cascade)
+  roomId      String
+  userId      String
+  actionId    String
+  turn        Int
+  votedAt     DateTime   @default(now())
+  action      TurnAction @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id])
+
+  @@unique([gameStateId, userId, turn])
+  @@map("votes")
+}
+
+model Campaign {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  creatorId String
+  creator   User   @relation("CampaignCreator", fields: [creatorId], references: [id])
+
+  title             String
+  synopsis          String
+  startLocation     String
+  mainQuest         String
+  systemPrompt      String
+  theme             CampaignTheme
+  difficulty        CampaignDifficulty
+  minPlayers        Int                @default(2)
+  maxPlayers        Int                @default(6)
+  estimatedDuration Int
+  isPublic          Boolean            @default(true)
+  isPremium         Boolean            @default(false)
+
+  rooms Room[]
+
+  @@index([isPublic, isPremium])
+  @@map("campaigns")
 }

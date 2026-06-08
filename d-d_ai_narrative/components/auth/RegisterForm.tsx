@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 
 import { RegisterSchema, type RegisterInput } from '@/lib/validations/auth';
 import {
@@ -50,6 +50,8 @@ export function RegisterForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const form = useForm<RegisterInput>({
     resolver: zodResolver(RegisterSchema),
@@ -138,15 +140,26 @@ export function RegisterForm() {
                     Mot de passe
                   </FormLabel>
                   <FormControl>
-                    <Input
-                      {...field}
-                      type="password"
-                      placeholder="••••••••"
-                      autoComplete="new-password"
-                      className="bg-black/40 border-white/5 rounded-xl px-4 py-3 h-auto text-gray-200 placeholder:text-gray-600 focus-visible:ring-red-600/20 focus-visible:border-red-600"
-                      onFocus={() => setPasswordFocused(true)}
-                      onBlur={() => setPasswordFocused(false)}
-                    />
+                    <div className="relative">
+                      <Input
+                        {...field}
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="••••••••"
+                        autoComplete="new-password"
+                        className="bg-black/40 border-white/5 rounded-xl px-4 py-3 h-auto text-gray-200 placeholder:text-gray-600 focus-visible:ring-red-600/20 focus-visible:border-red-600 pr-10"
+                        onFocus={() => setPasswordFocused(true)}
+                        onBlur={() => setPasswordFocused(false)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                        aria-pressed={showPassword}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400 transition-colors"
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                   </FormControl>
                   <PasswordCriteria password={passwordValue} visible={passwordFocused || !!passwordValue} />
                   <FormMessage />
@@ -164,13 +177,24 @@ export function RegisterForm() {
                     Confirmer le mot de passe
                   </FormLabel>
                   <FormControl>
-                    <Input
-                      {...field}
-                      type="password"
-                      placeholder="••••••••"
-                      autoComplete="new-password"
-                      className="bg-black/40 border-white/5 rounded-xl px-4 py-3 h-auto text-gray-200 placeholder:text-gray-600 focus-visible:ring-red-600/20 focus-visible:border-red-600"
-                    />
+                    <div className="relative">
+                      <Input
+                        {...field}
+                        type={showConfirm ? 'text' : 'password'}
+                        placeholder="••••••••"
+                        autoComplete="new-password"
+                        className="bg-black/40 border-white/5 rounded-xl px-4 py-3 h-auto text-gray-200 placeholder:text-gray-600 focus-visible:ring-red-600/20 focus-visible:border-red-600 pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirm((v) => !v)}
+                        aria-label={showConfirm ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                        aria-pressed={showConfirm}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400 transition-colors"
+                      >
+                        {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
