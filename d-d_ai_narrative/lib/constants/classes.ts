@@ -1,4 +1,4 @@
-import { CharClass } from '@/app/generated/prisma/client';
+import { CharClass } from '@/app/generated/prisma/enums';
 
 export interface ClassDefinition {
   id: CharClass;

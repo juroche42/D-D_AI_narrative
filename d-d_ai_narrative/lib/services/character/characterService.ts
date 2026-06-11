@@ -1,7 +1,7 @@
-import {conflict} from '@/lib/api/errors';
-import {prisma} from '@/lib/prisma';
-import type {CreateCharacter} from '@/lib/validations/character';
-import type {Character} from '@/app/generated/prisma/client';
+import { conflict } from '@/lib/api/errors';
+import { prisma } from '@/lib/prisma';
+import type { CreateCharacter } from '@/lib/validations/character';
+import type { Character } from '@/app/generated/prisma/client';
 
 export type CharacterResponse = Omit<Character, 'userId'> & { userId: string };
 

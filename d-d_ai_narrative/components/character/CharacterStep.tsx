@@ -9,7 +9,7 @@ import { SelectionCard } from './SelectionCard';
 import { StepIndicator } from './StepIndicator';
 import { CharacterPreview } from './CharacterPreview';
 
-const STEPS = ['Ligné', 'Vocation', 'Identité'] as const;
+const STEPS = ['Lignée', 'Vocation', 'Identité'] as const;
 
 const DEFAULT_STATS = {
   strength: 10,

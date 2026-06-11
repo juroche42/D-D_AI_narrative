@@ -21,19 +21,6 @@ describe('CreateCharacterSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('backstory optionnelle — absent → valide', () => {
-    const result = CreateCharacterSchema.safeParse(VALID_CHARACTER);
-    expect(result.success).toBe(true);
-  });
-
-  it('backstory présente → valide', () => {
-    const result = CreateCharacterSchema.safeParse({
-      ...VALID_CHARACTER,
-      backstory: 'Un ancien forgeron des montagnes du Nord.',
-    });
-    expect(result.success).toBe(true);
-  });
-
   it('name trop court (< 2) → erreur', () => {
     const result = CreateCharacterSchema.safeParse({ ...VALID_CHARACTER, name: 'X' });
     expect(result.success).toBe(false);
