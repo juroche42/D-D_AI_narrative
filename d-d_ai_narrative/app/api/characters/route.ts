@@ -2,6 +2,9 @@ import type { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler, withValidation } from '@/lib/api/middleware';
 import { notImplemented } from '@/lib/api/errors';
 import { CreateCharacterSchema, type CreateCharacter } from '@/lib/validations/character';
+import { requireCurrentUserId } from '@/lib/auth/currentUser';
+import { createCharacter } from '@/lib/services/character';
+import * as ApiResponse from '@/lib/api/response';
 
 /**
  * @openapi
@@ -70,16 +73,12 @@ export const GET = withErrorHandler(
  *                 example: Thorin Rochefer
  *               race:
  *                 type: string
- *                 enum: [Human, Elf, Dwarf, Halfling, Gnome, Half-Elf, Half-Orc, Tiefling, Dragonborn]
- *                 example: Dwarf
+ *                 enum: [HUMAN, ELF, DWARF, HALF_ORC, TIEFLING, HALFLING]
+ *                 example: DWARF
  *               class:
  *                 type: string
- *                 enum: [Barbarian, Bard, Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard]
- *                 example: Fighter
- *               backstory:
- *                 type: string
- *                 maxLength: 2000
- *                 example: Ancien forgeron des montagnes du Nord...
+ *                 enum: [FIGHTER, MAGE, ROGUE, CLERIC, BARD, RANGER]
+ *                 example: FIGHTER
  *               stats:
  *                 type: object
  *                 required:
@@ -116,15 +115,21 @@ export const GET = withErrorHandler(
  *                     maximum: 20
  *     responses:
  *       201:
- *         description: Personnage créé
+ *         description: Personnage créé avec succès
  *       400:
  *         description: Données invalides
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ApiError'
- *       501:
- *         description: Non implémenté
+ *       401:
+ *         description: Non authentifié
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiError'
+ *       409:
+ *         description: Un personnage avec ce nom existe déjà
  *         content:
  *           application/json:
  *             schema:
@@ -133,8 +138,10 @@ export const GET = withErrorHandler(
 export const POST = withErrorHandler(
   withValidation(
     CreateCharacterSchema,
-    async (_req: NextRequest, _ctx: { data: CreateCharacter }): Promise<NextResponse> => {
-      throw notImplemented('POST /api/characters is not implemented yet');
+    async (req: NextRequest, ctx: { data: CreateCharacter }): Promise<NextResponse> => {
+      const userId = await requireCurrentUserId(req);
+      const character = await createCharacter(userId, ctx.data);
+      return ApiResponse.created(character, 'Personnage créé avec succès');
     },
   ),
 );

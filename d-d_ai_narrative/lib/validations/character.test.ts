@@ -3,8 +3,8 @@ import { CreateCharacterSchema } from './character';
 
 const VALID_CHARACTER = {
   name: 'Thorin Rochefer',
-  race: 'Dwarf',
-  class: 'Fighter',
+  race: 'DWARF',
+  class: 'FIGHTER',
   stats: {
     strength: 18,
     dexterity: 12,
@@ -18,19 +18,6 @@ const VALID_CHARACTER = {
 describe('CreateCharacterSchema', () => {
   it('personnage valide passe', () => {
     const result = CreateCharacterSchema.safeParse(VALID_CHARACTER);
-    expect(result.success).toBe(true);
-  });
-
-  it('backstory optionnelle — absent → valide', () => {
-    const result = CreateCharacterSchema.safeParse(VALID_CHARACTER);
-    expect(result.success).toBe(true);
-  });
-
-  it('backstory présente → valide', () => {
-    const result = CreateCharacterSchema.safeParse({
-      ...VALID_CHARACTER,
-      backstory: 'Un ancien forgeron des montagnes du Nord.',
-    });
     expect(result.success).toBe(true);
   });
 

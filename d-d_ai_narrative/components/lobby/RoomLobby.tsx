@@ -201,11 +201,14 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
                 )}
 
                 {/* US-04-04 — Sélection personnage */}
-                <div className="bg-black/20 p-6 rounded-2xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 min-h-30 text-gray-700 cursor-not-allowed">
-                  <User size={28} />
+                <a
+                  href="/characters/create"
+                  className="bg-black/20 p-6 rounded-2xl border border-dashed border-white/20 flex flex-col items-center justify-center gap-2 min-h-30 text-gray-400 hover:border-red-600/50 hover:text-red-400 transition-colors group"
+                >
+                  <User size={28} className="group-hover:scale-110 transition-transform" />
                   <p className="text-xs font-bold uppercase tracking-wide">Créer votre héros</p>
-                  <p className="text-[10px] uppercase tracking-widest opacity-60">US-04-04</p>
-                </div>
+                  <p className="text-[10px] uppercase tracking-widest opacity-60">Cliquez pour commencer</p>
+                </a>
               </div>
 
               {/* Footer actions */}
