@@ -1,4 +1,4 @@
-import { Race } from '@/app/generated/prisma/client';
+import { Race } from '@/app/generated/prisma/enums';
 
 export interface RaceDefinition {
   id: Race;
