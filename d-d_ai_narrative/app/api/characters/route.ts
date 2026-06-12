@@ -1,9 +1,8 @@
 import type { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler, withValidation } from '@/lib/api/middleware';
-import { notImplemented } from '@/lib/api/errors';
 import { CreateCharacterSchema, type CreateCharacter } from '@/lib/validations/character';
 import { requireCurrentUserId } from '@/lib/auth/currentUser';
-import { createCharacter } from '@/lib/services/character';
+import { createCharacter, listCharacters } from '@/lib/services/character';
 import * as ApiResponse from '@/lib/api/response';
 
 /**
@@ -31,16 +30,23 @@ import * as ApiResponse from '@/lib/api/response';
  *     responses:
  *       200:
  *         description: Liste des personnages
- *       501:
- *         description: Non implémenté
+ *       401:
+ *         description: Non authentifié
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ApiError'
  */
 export const GET = withErrorHandler(
-  async (_req: NextRequest): Promise<NextResponse> => {
-    throw notImplemented('GET /api/characters is not implemented yet');
+  async (req: NextRequest): Promise<NextResponse> => {
+    const userId = await requireCurrentUserId(req);
+
+    const { searchParams } = new URL(req.url);
+    const page = Math.max(1, Number(searchParams.get('page')) || 1);
+    const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 20));
+
+    const { characters, total } = await listCharacters(userId, page, limit);
+    return ApiResponse.paginated(characters, total, page, limit);
   },
 );
 

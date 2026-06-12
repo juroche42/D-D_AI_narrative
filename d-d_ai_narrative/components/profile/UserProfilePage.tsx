@@ -14,6 +14,9 @@ import { Card } from '@/components/ui/card';
 import { EditUsernameModal } from '@/components/profile/EditUsernameModal';
 import { ChangePasswordModal } from '@/components/profile/ChangePasswordModal';
 import { LogoutButton } from '@/components/layout/LogoutButton';
+import { CharacterPreview } from '@/components/character/CharacterPreview';
+import { RACE_MAP } from '@/lib/constants/races';
+import { CLASS_MAP } from '@/lib/constants/classes';
 
 type UserMeApiResponse = {
   success: boolean;
@@ -39,6 +42,27 @@ type UserMeApiResponse = {
   error: { code: string; details?: unknown } | null;
 };
 
+type CharacterApi = {
+  id: string;
+  name: string;
+  race: keyof typeof RACE_MAP;
+  class: keyof typeof CLASS_MAP;
+  level: number;
+  strength: number;
+  dexterity: number;
+  constitution: number;
+  intelligence: number;
+  wisdom: number;
+  charisma: number;
+};
+
+type CharactersApiResponse = {
+  success: boolean;
+  data: CharacterApi[] | null;
+  message: string;
+  error: { code: string; details?: unknown } | null;
+};
+
 const THEME = {
   bg: 'bg-[#0f0f12]',
   surface: 'bg-[#16161a]',
@@ -56,6 +80,10 @@ export function UserProfilePage() {
   const [activePanel, setActivePanel] = useState<'username' | 'password' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const [characters, setCharacters] = useState<CharacterApi[]>([]);
+  const [charactersLoading, setCharactersLoading] = useState(true);
+  const [charactersError, setCharactersError] = useState<string | null>(null);
 
   const [username, setUsername] = useState('');
 
@@ -104,9 +132,31 @@ export function UserProfilePage() {
     [applyUser],
   );
 
+  const fetchCharacters = useCallback(async () => {
+    setCharactersLoading(true);
+    setCharactersError(null);
+
+    try {
+      const res = await fetch('/api/characters');
+      const json = (await res.json()) as CharactersApiResponse;
+
+      if (!res.ok || !json.success || !json.data) {
+        setCharactersError(json.message || 'Impossible de charger les héros');
+        return;
+      }
+
+      setCharacters(json.data);
+    } catch {
+      setCharactersError('Erreur réseau lors du chargement des héros');
+    } finally {
+      setCharactersLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void fetchProfile();
-  }, [fetchProfile]);
+    void fetchCharacters();
+  }, [fetchProfile, fetchCharacters]);
 
   const saveProfile = async () => {
     setSavingProfile(true);
@@ -262,19 +312,39 @@ export function UserProfilePage() {
 
           <Card className={`p-8 space-y-6 ${THEME.surface} ${THEME.borderLight}`}>
             <h3 className="text-xl font-bold text-white uppercase italic border-b border-white/5 pb-4 tracking-tight">
-              Statistiques globales
+              Mes Héros
             </h3>
-            <div className="grid grid-cols-2 gap-4">
-              <Stat
-                label="Monstres occis"
-                value={user?.profile.monstersDefeated ?? 0}
-                icon={<AlertCircle size={16} />}
-              />
-              <Stat
-                label="Coups critiques"
-                value={user?.profile.naturalCrits ?? 0}
-                icon={<Sparkles size={16} />}
-              />
+            <div className="space-y-4">
+              {charactersLoading ? (
+                <div className="flex items-center gap-2 text-gray-400 p-4">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Chargement...
+                </div>
+              ) : charactersError ? (
+                <div className="p-4 bg-white/5 rounded-xl border border-white/5">
+                  <p className="text-sm text-red-300">{charactersError}</p>
+                </div>
+              ) : characters.length === 0 ? (
+                <div className="p-4 bg-white/5 rounded-xl border border-white/5">
+                  <p className="text-sm text-gray-300">Aucun héros pour le moment.</p>
+                </div>
+              ) : (
+                characters.map((character) => (
+                  <CharacterPreview
+                    key={character.id}
+                    name={character.name}
+                    raceName={RACE_MAP[character.race]?.name ?? character.race}
+                    className={CLASS_MAP[character.class]?.name ?? character.class}
+                    stats={{
+                      strength: character.strength,
+                      dexterity: character.dexterity,
+                      constitution: character.constitution,
+                      intelligence: character.intelligence,
+                      wisdom: character.wisdom,
+                      charisma: character.charisma,
+                    }}
+                  />
+                ))
+              )}
             </div>
           </Card>
         </div>
@@ -304,18 +374,6 @@ export function UserProfilePage() {
         onSave={savePassword}
         buttonClassName={formButtonClass}
       />
-    </div>
-  );
-}
-
-function Stat({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
-  return (
-    <div className="bg-black/20 p-4 rounded-xl text-center border border-red-900/10 shadow-inner">
-      <p className="text-[9px] font-black text-gray-500 uppercase mb-1 tracking-widest flex items-center justify-center gap-1">
-        <span className="text-gray-400">{icon}</span>
-        {label}
-      </p>
-      <p className="text-3xl font-black text-gray-200 italic">{value}</p>
     </div>
   );
 }
