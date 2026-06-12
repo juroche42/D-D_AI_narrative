@@ -4,6 +4,8 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     character: {
       findUnique: vi.fn(),
+      findMany: vi.fn(),
+      count: vi.fn(),
       create: vi.fn(),
     },
   },
@@ -11,7 +13,7 @@ vi.mock('@/lib/prisma', () => ({
 
 vi.mock('server-only', () => ({}));
 
-import { createCharacter } from './characterService';
+import { createCharacter, listCharacters } from './characterService';
 import { prisma } from '@/lib/prisma';
 
 const VALID_DATA = {
@@ -189,6 +191,60 @@ describe('createCharacter', () => {
       expect.objectContaining({
         data: expect.objectContaining({ xp: 0, level: 1 }),
       }),
+    );
+  });
+});
+
+describe('listCharacters', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('retourne les personnages de l\'utilisateur avec le total', async () => {
+    vi.mocked(prisma.character.findMany).mockResolvedValue([MOCK_CHARACTER] as never);
+    vi.mocked(prisma.character.count).mockResolvedValue(1);
+
+    const result = await listCharacters('user_cuid_1');
+
+    expect(result.characters).toHaveLength(1);
+    expect(result.characters[0].name).toBe('Thorin');
+    expect(result.total).toBe(1);
+  });
+
+  it('filtre par userId et trie par date de création décroissante', async () => {
+    vi.mocked(prisma.character.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.character.count).mockResolvedValue(0);
+
+    await listCharacters('user_cuid_1');
+
+    expect(prisma.character.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: 'user_cuid_1' },
+        orderBy: { createdAt: 'desc' },
+      }),
+    );
+    expect(prisma.character.count).toHaveBeenCalledWith({
+      where: { userId: 'user_cuid_1' },
+    });
+  });
+
+  it('applique la pagination — page 2, limit 10 → skip 10, take 10', async () => {
+    vi.mocked(prisma.character.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.character.count).mockResolvedValue(0);
+
+    await listCharacters('user_cuid_1', 2, 10);
+
+    expect(prisma.character.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 10, take: 10 }),
+    );
+  });
+
+  it('utilise page=1 et limit=20 par défaut', async () => {
+    vi.mocked(prisma.character.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.character.count).mockResolvedValue(0);
+
+    await listCharacters('user_cuid_1');
+
+    expect(prisma.character.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 0, take: 20 }),
     );
   });
 });
