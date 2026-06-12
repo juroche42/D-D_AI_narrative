@@ -33,6 +33,24 @@ function computeArmorClass(dexterity: number): number {
   return 10 + Math.floor((dexterity - 10) / 2);
 }
 
+export async function listCharacters(
+  userId: string,
+  page = 1,
+  limit = 20,
+): Promise<{ characters: CharacterResponse[]; total: number }> {
+  const [characters, total] = await Promise.all([
+    prisma.character.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.character.count({ where: { userId } }),
+  ]);
+
+  return { characters, total };
+}
+
 export async function createCharacter(
   userId: string,
   data: CreateCharacter,
