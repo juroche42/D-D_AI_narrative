@@ -18,6 +18,7 @@ vi.mock('@/lib/prisma', () => ({
       update: vi.fn(),
       updateMany: vi.fn(),
       delete: vi.fn(),
+      deleteMany: vi.fn(),
     },
     campaign: {
       findUnique: vi.fn(),
@@ -43,7 +44,7 @@ vi.mock('@/lib/sse/sseManager', () => ({
   broadcastToRoom: vi.fn(),
 }));
 
-import { createRoom, getRoomByCode, getRoomPreview, getResumableGames, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady, selectCampaign, selectCharacter } from './roomService';
+import { createRoom, getRoomByCode, getRoomPreview, getResumableGames, deleteExpiredGames, UNFINISHED_GAME_TTL_MS, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady, selectCampaign, selectCharacter } from './roomService';
 import { prisma } from '@/lib/prisma';
 import { broadcastToRoom } from '@/lib/sse/sseManager';
 import { broadcastPlayerUpdate } from '@/lib/sse/sseService';
@@ -657,7 +658,10 @@ describe('selectCharacter', () => {
 });
 
 describe('getResumableGames', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.room.deleteMany).mockResolvedValue({ count: 0 } as never);
+  });
 
   const RESUMABLE_ROOM = {
     ...MOCK_ROOM,
@@ -705,5 +709,38 @@ describe('getResumableGames', () => {
     const games = await getResumableGames('user_1');
 
     expect(games).toEqual([]);
+  });
+
+  it('purge les parties expirées avant de lister', async () => {
+    vi.mocked(prisma.room.findMany).mockResolvedValue([] as never);
+
+    await getResumableGames('user_1');
+
+    expect(prisma.room.deleteMany).toHaveBeenCalledOnce();
+  });
+});
+
+describe('deleteExpiredGames', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('supprime les parties non terminées créées il y a plus de 7 jours', async () => {
+    vi.mocked(prisma.room.deleteMany).mockResolvedValue({ count: 3 } as never);
+    const before = Date.now();
+
+    const count = await deleteExpiredGames();
+
+    expect(count).toBe(3);
+    const arg = vi.mocked(prisma.room.deleteMany).mock.calls[0][0];
+    expect(arg?.where?.status).toEqual({ not: RoomStatus.FINISHED });
+    // Le seuil est ~7 jours dans le passé
+    const cutoff = (arg?.where?.createdAt as { lt: Date }).lt.getTime();
+    expect(before - cutoff).toBeGreaterThanOrEqual(UNFINISHED_GAME_TTL_MS - 1000);
+    expect(before - cutoff).toBeLessThanOrEqual(UNFINISHED_GAME_TTL_MS + 1000);
+  });
+
+  it('retourne 0 quand aucune partie n\'est expirée', async () => {
+    vi.mocked(prisma.room.deleteMany).mockResolvedValue({ count: 0 } as never);
+
+    expect(await deleteExpiredGames()).toBe(0);
   });
 });

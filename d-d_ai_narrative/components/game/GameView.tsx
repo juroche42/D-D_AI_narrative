@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
-import { Loader2, Swords, ChevronRight, Clock, User, AlertTriangle, RotateCcw, Radio } from 'lucide-react';
+import { Loader2, Swords, ChevronRight, Clock, User, AlertTriangle, RotateCcw, Radio, Wifi, WifiOff } from 'lucide-react';
 import { useNarrativeStream } from '@/hooks/useNarrativeStream';
 import { useGameEvents } from '@/hooks/useGameEvents';
 
@@ -102,12 +102,13 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
   const handleVote = async () => {
-    if (!selectedActionId) return;
+    if (!selectedActionId || !allPlayersOnline) return;
     await gameEvents.castVote(selectedActionId);
   };
 
   const handleConfirm = () => {
     if (!selectedActionId && !freeAction.trim()) return;
+    if (!allPlayersOnline) return;
 
     startTransition(() => {
       setPhase('scene_loading');
@@ -133,6 +134,20 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
   const currentError   = intro.error ?? scene.error ?? gameEvents.error;
   const turnDisplay    = gameEvents.currentTurn > 1 ? gameEvents.currentTurn : 1;
   const myVotedId      = gameEvents.myVote;
+
+  // ── Présence des joueurs ────────────────────────────────────────────────────
+  // Le joueur courant est toujours en ligne (il regarde l'écran).
+  const onlineSet = new Set(gameEvents.onlineUserIds);
+  onlineSet.add(currentPlayer.userId);
+  // Tant que la présence n'est pas connue, on considère tout le monde en ligne (évite un flash "hors ligne").
+  const isOnline = (userId: string) => !gameEvents.presenceReady || onlineSet.has(userId);
+
+  // On n'applique le blocage qu'une fois la présence connue (évite un faux "hors ligne" au montage).
+  const offlinePlayers = gameEvents.presenceReady
+    ? otherPlayers.filter((p) => !onlineSet.has(p.userId))
+    : [];
+  const allPlayersOnline = offlinePlayers.length === 0;
+  const canPlay = phase === 'voting' && allPlayersOnline;
 
   // ── Rendu ─────────────────────────────────────────────────────────────────────
 
@@ -204,7 +219,23 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
           {/* Zone d'actions — visible en phase voting */}
           {phase === 'voting' && (
             <div className="bg-black/20 border border-white/5 rounded-3xl p-6 flex flex-col gap-4">
-              <div className="flex items-center justify-between">
+              {/* Blocage — un ou plusieurs joueurs sont hors ligne */}
+              {!allPlayersOnline && (
+                <div className="flex items-start gap-3 rounded-xl border border-amber-900/40 bg-amber-950/20 px-4 py-3">
+                  <WifiOff size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-widest text-amber-400">
+                      En attente des joueurs
+                    </p>
+                    <p className="text-[11px] text-amber-200/70 mt-0.5">
+                      La partie reprendra quand {offlinePlayers.length === 1 ? 'ce joueur sera' : 'ces joueurs seront'} de retour :{' '}
+                      {offlinePlayers.map((p) => p.characterName ?? p.username).join(', ')}.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className={`flex items-center justify-between ${!allPlayersOnline ? 'opacity-40 pointer-events-none' : ''}`}>
                 <p className="text-xs font-black uppercase tracking-widest text-white">
                   Quelle est votre réponse ?
                 </p>
@@ -222,7 +253,7 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
               </div>
 
               {/* Actions suggérées */}
-              <div className="flex flex-col gap-2">
+              <div className={`flex flex-col gap-2 ${!allPlayersOnline ? 'opacity-40 pointer-events-none' : ''}`}>
                 {gameEvents.actions.map((action) => {
                   const voteCount = gameEvents.votes.find((v) => v.actionId === action.id)?.count ?? 0;
                   const isSelected = selectedActionId === action.id;
@@ -275,11 +306,12 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
                   }}
                   placeholder="Action libre..."
                   maxLength={200}
-                  className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-gray-700 focus:outline-none focus:border-red-800 transition-colors"
+                  disabled={!canPlay}
+                  className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-gray-700 focus:outline-none focus:border-red-800 transition-colors disabled:opacity-40"
                 />
                 <button
                   onClick={selectedActionId ? handleVote : handleConfirm}
-                  disabled={!selectedActionId && !freeAction.trim()}
+                  disabled={(!selectedActionId && !freeAction.trim()) || !canPlay}
                   className="px-6 py-2.5 bg-red-700 hover:bg-red-600 disabled:bg-gray-800 disabled:text-gray-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors"
                 >
                   {selectedActionId ? 'Voter' : 'Jouer'}
@@ -290,7 +322,7 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
               {(selectedActionId || freeAction.trim()) && (
                 <button
                   onClick={handleConfirm}
-                  disabled={!selectedActionId && !freeAction.trim()}
+                  disabled={(!selectedActionId && !freeAction.trim()) || !canPlay}
                   className="w-full py-3 border border-red-900/40 bg-red-950/10 hover:bg-red-950/20 disabled:opacity-40 text-red-400 text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors"
                 >
                   Lancer l&apos;action
@@ -378,10 +410,15 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
                     className="flex flex-col gap-2 pb-4 border-b border-white/5 last:border-0 last:pb-0"
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 flex-shrink-0 rounded-full bg-black/40 border border-white/10 flex items-center justify-center">
+                      <div className="w-9 h-9 flex-shrink-0 rounded-full bg-black/40 border border-white/10 flex items-center justify-center relative">
                         <User size={16} className="text-gray-600" />
+                        <span
+                          className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#0d0d0f] ${
+                            isOnline(member.userId) ? 'bg-green-500' : 'bg-gray-600'
+                          }`}
+                        />
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-xs font-black uppercase italic text-white truncate">
                           {member.characterName ?? member.username}
                         </p>
@@ -391,6 +428,17 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
                           </p>
                         )}
                       </div>
+                      {isOnline(member.userId) ? (
+                        <span className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-green-500 border border-green-900/40 bg-green-950/20 px-1.5 py-0.5 rounded flex-shrink-0">
+                          <Wifi size={9} />
+                          En ligne
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-gray-500 border border-white/10 bg-white/5 px-1.5 py-0.5 rounded flex-shrink-0">
+                          <WifiOff size={9} />
+                          Hors ligne
+                        </span>
+                      )}
                     </div>
 
                     {member.maxHp && (

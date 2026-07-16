@@ -8,6 +8,9 @@ import { broadcastToRoom } from '@/lib/sse/sseManager';
 
 const generateCode = customAlphabet('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 6);
 
+/** Durée de rétention d'une partie non terminée avant suppression automatique (7 jours). */
+export const UNFINISHED_GAME_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 /** DTO public — jamais exposer l'objet Prisma brut */
 export interface RoomPublic {
   id: string;
@@ -404,11 +407,34 @@ export async function selectCharacter(
 }
 
 /**
+ * Supprime les parties non terminées (WAITING ou IN_PROGRESS) créées il y a
+ * plus de 7 jours. Le cascade Prisma nettoie GameState, joueurs, votes, etc.
+ * @returns le nombre de parties supprimées
+ */
+export async function deleteExpiredGames(): Promise<number> {
+  const cutoff = new Date(Date.now() - UNFINISHED_GAME_TTL_MS);
+
+  const { count } = await prisma.room.deleteMany({
+    where: {
+      status: { not: RoomStatus.FINISHED },
+      createdAt: { lt: cutoff },
+    },
+  });
+
+  return count;
+}
+
+/**
  * Liste les parties en cours qu'un joueur peut reprendre.
  * Une partie est reprenable si le salon est IN_PROGRESS, possède un GameState
  * et que le joueur en est membre. Triées par activité la plus récente.
+ *
+ * Purge au passage les parties non terminées expirées (> 7 jours) afin de
+ * garder le « context save » propre.
  */
 export async function getResumableGames(userId: string): Promise<ResumableGame[]> {
+  await deleteExpiredGames();
+
   const rooms = await prisma.room.findMany({
     where: {
       status: RoomStatus.IN_PROGRESS,
