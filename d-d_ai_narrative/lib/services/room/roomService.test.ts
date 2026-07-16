@@ -9,6 +9,7 @@ vi.mock('@/lib/prisma', () => ({
       create: vi.fn(),
       delete: vi.fn(),
       update: vi.fn(),
+      count: vi.fn(),
     },
     room: {
       findUnique: vi.fn(),
@@ -292,10 +293,11 @@ describe('updateRoomStatus', () => {
     process.env.NEXTAUTH_URL = 'http://localhost:3000';
   });
 
-  it('host peut passer WAITING → IN_PROGRESS avec ≥ 2 joueurs', async () => {
+  it('host peut passer WAITING → IN_PROGRESS avec ≥ 2 joueurs (tous avec personnage)', async () => {
     vi.mocked(prisma.room.findUnique).mockResolvedValue({
       ...MOCK_ROOM, campaignId: 'campaign_1', _count: { players: 3 },
     } as never);
+    vi.mocked(prisma.roomPlayer.count).mockResolvedValue(0);
     vi.mocked(prisma.room.update).mockResolvedValue({
       ...MOCK_ROOM, status: 'IN_PROGRESS',
     } as never);
@@ -303,10 +305,24 @@ describe('updateRoomStatus', () => {
     const result = await updateRoomStatus('ABC123', 'user_cuid_1', 'IN_PROGRESS');
 
     expect(result.status).toBe('IN_PROGRESS');
+    expect(prisma.roomPlayer.count).toHaveBeenCalledWith({
+      where: { roomId: 'room_cuid_1', characterId: null },
+    });
     expect(prisma.room.update).toHaveBeenCalledWith({
       where: { id: 'room_cuid_1' },
       data: { status: 'IN_PROGRESS' },
     });
+  });
+
+  it('lève 422 si au moins un joueur n\'a pas choisi de personnage', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue({
+      ...MOCK_ROOM, campaignId: 'campaign_1', _count: { players: 3 },
+    } as never);
+    vi.mocked(prisma.roomPlayer.count).mockResolvedValue(2);
+
+    await expect(updateRoomStatus('ABC123', 'user_cuid_1', 'IN_PROGRESS'))
+      .rejects.toMatchObject({ statusCode: 422 });
+    expect(prisma.room.update).not.toHaveBeenCalled();
   });
 
   it('lève 403 si un non-host tente de démarrer', async () => {

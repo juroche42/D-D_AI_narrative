@@ -218,6 +218,15 @@ export async function updateRoomStatus(
     throw unprocessable('Sélectionnez une campagne avant de démarrer la partie');
   }
 
+  if (newStatus === 'IN_PROGRESS') {
+    const playersWithoutCharacter = await prisma.roomPlayer.count({
+      where: { roomId: room.id, characterId: null },
+    });
+    if (playersWithoutCharacter > 0) {
+      throw unprocessable('Tous les joueurs doivent choisir un personnage avant de démarrer');
+    }
+  }
+
   const updated = await prisma.room.update({
     where: { id: room.id },
     data: { status: newStatus },

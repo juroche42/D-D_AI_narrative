@@ -54,7 +54,8 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
   const myPlayer = players.find(p => p.userId === currentUser.id);
   const isHost = myPlayer?.isHost ?? (currentUser.id === room.hostId);
   const iAmReady = myPlayer?.isReady ?? false;
-  const canStart = isHost && roomStatus === 'WAITING' && players.length >= 2 && selectedCampaign !== null;
+  const allHaveCharacter = players.length > 0 && players.every(p => p.characterId !== null);
+  const canStart = isHost && roomStatus === 'WAITING' && players.length >= 2 && selectedCampaign !== null && allHaveCharacter;
 
   const nonHostPlayers = players.filter(p => !p.isHost);
   const readyCount = nonHostPlayers.filter(p => p.isReady).length;
@@ -314,8 +315,15 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
                   </p>
                 )}
 
+                {/* Message host : personnage manquant */}
+                {isHost && roomStatus === 'WAITING' && selectedCampaign && !allHaveCharacter && (
+                  <p className="text-[10px] font-black uppercase tracking-widest text-red-700">
+                    Chaque joueur doit choisir un personnage
+                  </p>
+                )}
+
                 {/* Message host : compteur prêts */}
-                {isHost && roomStatus === 'WAITING' && selectedCampaign && (
+                {isHost && roomStatus === 'WAITING' && selectedCampaign && allHaveCharacter && (
                   <p className={`text-[10px] font-black uppercase tracking-widest ${
                     allReady ? 'text-green-500' : 'text-gray-500'
                   }`}>
