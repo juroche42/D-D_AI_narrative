@@ -12,7 +12,10 @@ export async function getRoomData(roomCode: string): Promise<{
     where: { code: roomCode.toUpperCase() },
     include: {
       players: {
-        include: { user: { select: { id: true, username: true } } },
+        include: {
+          user: { select: { id: true, username: true } },
+          character: { select: { name: true, race: true, class: true } },
+        },
         orderBy: { joinedAt: 'asc' },
       },
     },
@@ -24,6 +27,9 @@ export async function getRoomData(roomCode: string): Promise<{
     userId: rp.user.id,
     username: rp.user.username,
     characterId: rp.characterId,
+    character: rp.character
+      ? { name: rp.character.name, race: rp.character.race, class: rp.character.class }
+      : null,
     isReady: rp.isReady,
     isHost: rp.userId === room.hostId,
     joinedAt: rp.joinedAt,

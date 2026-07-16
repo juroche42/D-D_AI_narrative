@@ -1,2 +1,2 @@
-export { createRoom, getRoomByCode, getRoomPreview, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady, selectCampaign } from './roomService';
-export type { RoomPublic } from './roomService';
+export { createRoom, getRoomByCode, getRoomPreview, getActiveLobbyCode, getResumableGames, deleteExpiredGames, UNFINISHED_GAME_TTL_MS, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady, selectCampaign, selectCharacter } from './roomService';
+export type { RoomPublic, ResumableGame } from './roomService';

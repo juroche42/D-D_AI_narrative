@@ -1,11 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   AlertCircle,
   ChevronRight,
   Loader2,
+  Play,
   Sparkles,
+  Users,
   User,
 } from 'lucide-react';
 
@@ -14,6 +17,10 @@ import { Card } from '@/components/ui/card';
 import { EditUsernameModal } from '@/components/profile/EditUsernameModal';
 import { ChangePasswordModal } from '@/components/profile/ChangePasswordModal';
 import { LogoutButton } from '@/components/layout/LogoutButton';
+import { CharacterPreview } from '@/components/character/CharacterPreview';
+import { RACE_MAP } from '@/lib/constants/races';
+import { CLASS_MAP } from '@/lib/constants/classes';
+import { THEME_CONFIG, type CampaignThemeKey } from '@/lib/constants/campaign';
 
 type UserMeApiResponse = {
   success: boolean;
@@ -39,6 +46,44 @@ type UserMeApiResponse = {
   error: { code: string; details?: unknown } | null;
 };
 
+type CharacterApi = {
+  id: string;
+  name: string;
+  race: keyof typeof RACE_MAP;
+  class: keyof typeof CLASS_MAP;
+  level: number;
+  strength: number;
+  dexterity: number;
+  constitution: number;
+  intelligence: number;
+  wisdom: number;
+  charisma: number;
+};
+
+type CharactersApiResponse = {
+  success: boolean;
+  data: CharacterApi[] | null;
+  message: string;
+  error: { code: string; details?: unknown } | null;
+};
+
+type ResumableGameApi = {
+  code: string;
+  name: string;
+  playerCount: number;
+  maxPlayers: number;
+  currentTurn: number;
+  lastActivityAt: string;
+  campaign: { id: string; title: string; theme: string; difficulty: string } | null;
+};
+
+type ResumableGamesApiResponse = {
+  success: boolean;
+  data: ResumableGameApi[] | null;
+  message: string;
+  error: { code: string; details?: unknown } | null;
+};
+
 const THEME = {
   bg: 'bg-[#0f0f12]',
   surface: 'bg-[#16161a]',
@@ -56,6 +101,14 @@ export function UserProfilePage() {
   const [activePanel, setActivePanel] = useState<'username' | 'password' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const [characters, setCharacters] = useState<CharacterApi[]>([]);
+  const [charactersLoading, setCharactersLoading] = useState(true);
+  const [charactersError, setCharactersError] = useState<string | null>(null);
+
+  const [resumableGames, setResumableGames] = useState<ResumableGameApi[]>([]);
+  const [gamesLoading, setGamesLoading] = useState(true);
+  const [gamesError, setGamesError] = useState<string | null>(null);
 
   const [username, setUsername] = useState('');
 
@@ -104,9 +157,53 @@ export function UserProfilePage() {
     [applyUser],
   );
 
+  const fetchCharacters = useCallback(async () => {
+    setCharactersLoading(true);
+    setCharactersError(null);
+
+    try {
+      const res = await fetch('/api/characters');
+      const json = (await res.json()) as CharactersApiResponse;
+
+      if (!res.ok || !json.success || !json.data) {
+        setCharactersError(json.message || 'Impossible de charger les héros');
+        return;
+      }
+
+      setCharacters(json.data);
+    } catch {
+      setCharactersError('Erreur réseau lors du chargement des héros');
+    } finally {
+      setCharactersLoading(false);
+    }
+  }, []);
+
+  const fetchResumableGames = useCallback(async () => {
+    setGamesLoading(true);
+    setGamesError(null);
+
+    try {
+      const res = await fetch('/api/rooms/resumable');
+      const json = (await res.json()) as ResumableGamesApiResponse;
+
+      if (!res.ok || !json.success || !json.data) {
+        setGamesError(json.message || 'Impossible de charger les parties en cours');
+        return;
+      }
+
+      setResumableGames(json.data);
+    } catch {
+      setGamesError('Erreur réseau lors du chargement des parties');
+    } finally {
+      setGamesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void fetchProfile();
-  }, [fetchProfile]);
+    void fetchCharacters();
+    void fetchResumableGames();
+  }, [fetchProfile, fetchCharacters, fetchResumableGames]);
 
   const saveProfile = async () => {
     setSavingProfile(true);
@@ -232,49 +329,97 @@ export function UserProfilePage() {
         <div className="grid md:grid-cols-2 gap-8">
           <Card className={`p-8 space-y-6 ${THEME.surface} ${THEME.borderLight}`}>
             <h3 className="text-xl font-bold text-white uppercase italic border-b border-white/5 pb-4 tracking-tight">
-              Historique des Sessions
+              Reprendre une partie
             </h3>
             <div className="space-y-4">
-              {(user?.profile.totalGames ?? 0) === 0 ? (
+              {gamesLoading ? (
+                <div className="flex items-center gap-2 text-gray-400 p-4">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Chargement...
+                </div>
+              ) : gamesError ? (
                 <div className="p-4 bg-white/5 rounded-xl border border-white/5">
-                  <p className="text-sm text-gray-300">Aucune session pour le moment.</p>
+                  <p className="text-sm text-red-300">{gamesError}</p>
+                </div>
+              ) : resumableGames.length === 0 ? (
+                <div className="p-4 bg-white/5 rounded-xl border border-white/5">
+                  <p className="text-sm text-gray-300">Aucune partie en cours à reprendre.</p>
                 </div>
               ) : (
-                Array.from({ length: Math.min(user?.profile.totalGames ?? 0, 3) }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="flex justify-between items-center p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/[0.07] transition-all"
-                  >
-                    <div>
-                      <p className="font-black text-sm text-white uppercase italic tracking-tight">
-                        Session #{i + 1}
-                      </p>
-                      <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">
-                        Historique de partie
-                      </p>
-                    </div>
-                    <ChevronRight size={18} className="text-red-900" />
-                  </div>
-                ))
+                resumableGames.map((game) => {
+                  const theme = game.campaign
+                    ? THEME_CONFIG[game.campaign.theme as CampaignThemeKey]
+                    : null;
+                  return (
+                    <Link
+                      key={game.code}
+                      href={`/game/${game.code}`}
+                      className="flex justify-between items-center p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/[0.07] transition-all group"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-black text-sm text-white uppercase italic tracking-tight truncate">
+                          {game.campaign?.title ?? game.name}
+                        </p>
+                        <div className="flex items-center gap-3 mt-1">
+                          {theme && (
+                            <span className={`text-[10px] uppercase tracking-widest font-bold ${theme.color}`}>
+                              {theme.label}
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1 text-[10px] text-gray-500 uppercase tracking-widest font-bold">
+                            <Users size={11} />
+                            {game.playerCount}/{game.maxPlayers}
+                          </span>
+                          <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">
+                            Tour {game.currentTurn}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 text-red-500 group-hover:text-red-400 shrink-0">
+                        <Play size={14} className="fill-current" />
+                        <ChevronRight size={18} className="text-red-900 group-hover:text-red-700" />
+                      </div>
+                    </Link>
+                  );
+                })
               )}
             </div>
           </Card>
 
           <Card className={`p-8 space-y-6 ${THEME.surface} ${THEME.borderLight}`}>
             <h3 className="text-xl font-bold text-white uppercase italic border-b border-white/5 pb-4 tracking-tight">
-              Statistiques globales
+              Mes Héros
             </h3>
-            <div className="grid grid-cols-2 gap-4">
-              <Stat
-                label="Monstres occis"
-                value={user?.profile.monstersDefeated ?? 0}
-                icon={<AlertCircle size={16} />}
-              />
-              <Stat
-                label="Coups critiques"
-                value={user?.profile.naturalCrits ?? 0}
-                icon={<Sparkles size={16} />}
-              />
+            <div className="space-y-4">
+              {charactersLoading ? (
+                <div className="flex items-center gap-2 text-gray-400 p-4">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Chargement...
+                </div>
+              ) : charactersError ? (
+                <div className="p-4 bg-white/5 rounded-xl border border-white/5">
+                  <p className="text-sm text-red-300">{charactersError}</p>
+                </div>
+              ) : characters.length === 0 ? (
+                <div className="p-4 bg-white/5 rounded-xl border border-white/5">
+                  <p className="text-sm text-gray-300">Aucun héros pour le moment.</p>
+                </div>
+              ) : (
+                characters.map((character) => (
+                  <CharacterPreview
+                    key={character.id}
+                    name={character.name}
+                    raceName={RACE_MAP[character.race]?.name ?? character.race}
+                    className={CLASS_MAP[character.class]?.name ?? character.class}
+                    stats={{
+                      strength: character.strength,
+                      dexterity: character.dexterity,
+                      constitution: character.constitution,
+                      intelligence: character.intelligence,
+                      wisdom: character.wisdom,
+                      charisma: character.charisma,
+                    }}
+                  />
+                ))
+              )}
             </div>
           </Card>
         </div>
@@ -304,18 +449,6 @@ export function UserProfilePage() {
         onSave={savePassword}
         buttonClassName={formButtonClass}
       />
-    </div>
-  );
-}
-
-function Stat({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
-  return (
-    <div className="bg-black/20 p-4 rounded-xl text-center border border-red-900/10 shadow-inner">
-      <p className="text-[9px] font-black text-gray-500 uppercase mb-1 tracking-widest flex items-center justify-center gap-1">
-        <span className="text-gray-400">{icon}</span>
-        {label}
-      </p>
-      <p className="text-3xl font-black text-gray-200 italic">{value}</p>
     </div>
   );
 }

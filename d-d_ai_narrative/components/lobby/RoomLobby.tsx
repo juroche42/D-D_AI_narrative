@@ -14,7 +14,11 @@ import { RoomStatusBadge } from '@/components/lobby/RoomStatusBadge';
 import { leaveRoomAction, startGameAction, toggleReadyAction } from '@/app/(lobby)/lobby/actions';
 import { useRoomPlayers } from '@/hooks/useRoomPlayers';
 import { THEME_CONFIG, DIFFICULTY_CONFIG, type CampaignThemeKey, type CampaignDifficultyKey } from '@/lib/constants/campaign';
+import { RACE_MAP } from '@/lib/constants/races';
+import { CLASS_MAP } from '@/lib/constants/classes';
+import type { Race, CharClass } from '@/app/generated/prisma/enums';
 import { CampaignSelectModal } from '@/components/lobby/CampaignSelectModal';
+import { CharacterSelectModal } from '@/components/lobby/CharacterSelectModal';
 
 interface CurrentUser {
   id: string;
@@ -36,6 +40,7 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
   const [startError, setStartError] = useState<string | null>(null);
   const [readyError, setReadyError] = useState<string | null>(null);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
+  const [showCharacterModal, setShowCharacterModal] = useState(false);
 
   const { players, roomStatus, status: sseStatus, error: sseError, selectedCampaign } = useRoomPlayers(room.code, room.campaign ?? undefined);
 
@@ -49,7 +54,8 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
   const myPlayer = players.find(p => p.userId === currentUser.id);
   const isHost = myPlayer?.isHost ?? (currentUser.id === room.hostId);
   const iAmReady = myPlayer?.isReady ?? false;
-  const canStart = isHost && roomStatus === 'WAITING' && players.length >= 2 && selectedCampaign !== null;
+  const allHaveCharacter = players.length > 0 && players.every(p => p.characterId !== null);
+  const canStart = isHost && roomStatus === 'WAITING' && players.length >= 2 && selectedCampaign !== null && allHaveCharacter;
 
   const nonHostPlayers = players.filter(p => !p.isHost);
   const readyCount = nonHostPlayers.filter(p => p.isReady).length;
@@ -187,7 +193,7 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
                 ) : isHost && roomStatus === 'WAITING' ? (
                   <button
                     onClick={() => setShowCampaignModal(true)}
-                    className="bg-black/20 p-6 rounded-2xl border border-dashed border-red-900/40 flex flex-col items-center justify-center gap-2 min-h-30 text-gray-600 hover:border-red-600/60 hover:text-red-500 transition-colors"
+                    className="bg-black/20 p-6 rounded-2xl border border-dashed border-white/20 flex flex-col items-center justify-center gap-2 min-h-30 text-gray-400 hover:border-red-600/50 hover:text-red-400 transition-colors group"
                   >
                     <Layout size={28} />
                     <p className="text-xs font-bold uppercase tracking-wide">Choisir un scénario</p>
@@ -201,11 +207,46 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
                 )}
 
                 {/* US-04-04 — Sélection personnage */}
-                <div className="bg-black/20 p-6 rounded-2xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 min-h-30 text-gray-700 cursor-not-allowed">
-                  <User size={28} />
-                  <p className="text-xs font-bold uppercase tracking-wide">Créer votre héros</p>
-                  <p className="text-[10px] uppercase tracking-widest opacity-60">US-04-04</p>
-                </div>
+                {myPlayer?.character ? (
+                  <div className="bg-black/20 p-6 rounded-2xl border border-white/10 flex flex-col gap-3 min-h-30 relative overflow-hidden group">
+                    <div className="absolute top-0 left-0 right-0 h-0.5 bg-red-600/60" />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">Héros sélectionné</p>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 flex-shrink-0 bg-red-900/40 rounded-xl flex items-center justify-center border border-red-900/30">
+                        <User className="text-red-500" size={20} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-white uppercase italic leading-tight truncate">
+                          {myPlayer.character.name}
+                        </p>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-widest">
+                          {RACE_MAP[myPlayer.character.race as Race]?.name ?? myPlayer.character.race}
+                          {' · '}
+                          {CLASS_MAP[myPlayer.character.class as CharClass]?.name ?? myPlayer.character.class}
+                        </p>
+                      </div>
+                    </div>
+                    {roomStatus === 'WAITING' && (
+                      <button
+                        onClick={() => setShowCharacterModal(true)}
+                        className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl"
+                      >
+                        <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white">
+                          <Pencil size={12} /> Changer
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowCharacterModal(true)}
+                    className="bg-black/20 p-6 rounded-2xl border border-dashed border-white/20 flex flex-col items-center justify-center gap-2 min-h-30 text-gray-400 hover:border-red-600/50 hover:text-red-400 transition-colors group"
+                  >
+                    <User size={28} className="group-hover:scale-110 transition-transform" />
+                    <p className="text-xs font-bold uppercase tracking-wide">Choisir un héros</p>
+                  </button>
+                )}
               </div>
 
               {/* Footer actions */}
@@ -274,8 +315,15 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
                   </p>
                 )}
 
+                {/* Message host : personnage manquant */}
+                {isHost && roomStatus === 'WAITING' && selectedCampaign && !allHaveCharacter && (
+                  <p className="text-[10px] font-black uppercase tracking-widest text-red-700">
+                    Chaque joueur doit choisir un personnage
+                  </p>
+                )}
+
                 {/* Message host : compteur prêts */}
-                {isHost && roomStatus === 'WAITING' && selectedCampaign && (
+                {isHost && roomStatus === 'WAITING' && selectedCampaign && allHaveCharacter && (
                   <p className={`text-[10px] font-black uppercase tracking-widest ${
                     allReady ? 'text-green-500' : 'text-gray-500'
                   }`}>
@@ -349,6 +397,14 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
           roomCode={room.code}
           currentCampaignId={selectedCampaign?.id ?? null}
           onClose={() => setShowCampaignModal(false)}
+        />
+      )}
+
+      {showCharacterModal && (
+        <CharacterSelectModal
+          roomCode={room.code}
+          currentCharacterId={myPlayer?.characterId ?? null}
+          onClose={() => setShowCharacterModal(false)}
         />
       )}
     </div>

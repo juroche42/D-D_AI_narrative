@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Loader2, Swords, ChevronRight, User, AlertTriangle, RotateCcw, Radio } from 'lucide-react';
+import { useState, useEffect, useTransition } from 'react';
+import { Loader2, Swords, ChevronRight, Clock, User, AlertTriangle, RotateCcw, Radio, Wifi, WifiOff } from 'lucide-react';
 import { useNarrativeStream } from '@/hooks/useNarrativeStream';
 import { useGameEvents } from '@/hooks/useGameEvents';
 import { useGameTimer } from '@/hooks/useGameTimer';
@@ -25,10 +25,13 @@ export interface CurrentPlayer {
   armorClass?:     number;
 }
 
+export type PartyMember = CurrentPlayer;
+
 export interface GameViewProps {
   roomCode:      string;
   campaign:      { title: string; theme: string; difficulty: string };
   currentPlayer: CurrentPlayer;
+  otherPlayers?: PartyMember[];
   isFirstTurn:   boolean;
   lastNarration?: string;
 }
@@ -42,7 +45,7 @@ const THEME_GRADIENT: Record<string, string> = {
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 
-export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastNarration }: GameViewProps) {
+export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [], isFirstTurn, lastNarration }: GameViewProps) {
   const [phase, setPhase]               = useState<GamePhase>('intro_loading');
   const [narrativeHistory, setHistory]  = useState<string[]>(lastNarration ? [lastNarration] : []);
   const [selectedActionId, setSelected] = useState<string | null>(null);
@@ -112,15 +115,22 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
   const handleVote = async () => {
-    if (!selectedActionId) return;
+    if (!selectedActionId || !allPlayersOnline) return;
     await gameEvents.castVote(selectedActionId);
   };
 
-  const handleVoteFree = async () => {
-    const text = freeAction.trim();
-    if (!text) return;
-    await gameEvents.voteFree(text);
-    setFreeAction('');
+  const handleConfirm = () => {
+    if (!selectedActionId && !freeAction.trim()) return;
+    if (!allPlayersOnline) return;
+
+    startTransition(() => {
+      setPhase('scene_loading');
+      const url = selectedActionId
+        ? `/api/game/${roomCode}/stream?type=scene&actionId=${selectedActionId}`
+        : `/api/game/${roomCode}/stream?type=scene&action=${encodeURIComponent(freeAction.trim())}`;
+      scene.reset();
+      scene.startStream(url);
+    });
   };
 
   // ── Texte courant ─────────────────────────────────────────────────────────────
@@ -139,6 +149,20 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
   const myVotedId      = gameEvents.myVote;
   const isResolved     = gameEvents.isResolved;
   const winningId      = gameEvents.winningAction?.id;
+
+  // ── Présence des joueurs ────────────────────────────────────────────────────
+  // Le joueur courant est toujours en ligne (il regarde l'écran).
+  const onlineSet = new Set(gameEvents.onlineUserIds);
+  onlineSet.add(currentPlayer.userId);
+  // Tant que la présence n'est pas connue, on considère tout le monde en ligne (évite un flash "hors ligne").
+  const isOnline = (userId: string) => !gameEvents.presenceReady || onlineSet.has(userId);
+
+  // On n'applique le blocage qu'une fois la présence connue (évite un faux "hors ligne" au montage).
+  const offlinePlayers = gameEvents.presenceReady
+    ? otherPlayers.filter((p) => !onlineSet.has(p.userId))
+    : [];
+  const allPlayersOnline = offlinePlayers.length === 0;
+  const canPlay = phase === 'voting' && allPlayersOnline;
 
   // ── Rendu ─────────────────────────────────────────────────────────────────────
 
@@ -210,7 +234,23 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
           {/* Zone d'actions — visible en phase voting */}
           {phase === 'voting' && (
             <div className="bg-black/20 border border-white/5 rounded-3xl p-6 flex flex-col gap-4">
-              <div className="flex items-center justify-between">
+              {/* Blocage — un ou plusieurs joueurs sont hors ligne */}
+              {!allPlayersOnline && (
+                <div className="flex items-start gap-3 rounded-xl border border-amber-900/40 bg-amber-950/20 px-4 py-3">
+                  <WifiOff size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-widest text-amber-400">
+                      En attente des joueurs
+                    </p>
+                    <p className="text-[11px] text-amber-200/70 mt-0.5">
+                      La partie reprendra quand {offlinePlayers.length === 1 ? 'ce joueur sera' : 'ces joueurs seront'} de retour :{' '}
+                      {offlinePlayers.map((p) => p.characterName ?? p.username).join(', ')}.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className={`flex items-center justify-between ${!allPlayersOnline ? 'opacity-40 pointer-events-none' : ''}`}>
                 <p className="text-xs font-black uppercase tracking-widest text-white">
                   {isResolved ? 'Action choisie' : 'Quelle est votre réponse ?'}
                 </p>
@@ -230,7 +270,7 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
               </div>
 
               {/* Actions suggérées */}
-              <div className="flex flex-col gap-2">
+              <div className={`flex flex-col gap-2 ${!allPlayersOnline ? 'opacity-40 pointer-events-none' : ''}`}>
                 {gameEvents.actions.map((action) => {
                   const voteCount  = gameEvents.votes.find((v) => v.actionId === action.id)?.count ?? 0;
                   const isSelected = selectedActionId === action.id;
@@ -294,28 +334,38 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
                 })}
               </div>
 
-              {/* Action libre — masquée si résolu */}
-              {!isResolved && (
-                <div className="flex gap-2 pt-2 border-t border-white/5">
-                  <input
-                    type="text"
-                    value={freeAction}
-                    onChange={(e) => {
-                      setFreeAction(e.target.value);
-                      if (e.target.value) setSelected(null);
-                    }}
-                    placeholder="Action libre..."
-                    maxLength={200}
-                    className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-gray-700 focus:outline-none focus:border-red-800 transition-colors"
-                  />
-                  <button
-                    onClick={selectedActionId ? handleVote : handleVoteFree}
-                    disabled={!selectedActionId && !freeAction.trim()}
-                    className="px-6 py-2.5 bg-red-700 hover:bg-red-600 disabled:bg-gray-800 disabled:text-gray-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors"
-                  >
-                    {selectedActionId ? 'Voter' : 'Jouer'}
-                  </button>
-                </div>
+              {/* Action libre */}
+              <div className="flex gap-2 pt-2 border-t border-white/5">
+                <input
+                  type="text"
+                  value={freeAction}
+                  onChange={(e) => {
+                    setFreeAction(e.target.value);
+                    if (e.target.value) setSelected(null);
+                  }}
+                  placeholder="Action libre..."
+                  maxLength={200}
+                  disabled={!canPlay}
+                  className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-gray-700 focus:outline-none focus:border-red-800 transition-colors disabled:opacity-40"
+                />
+                <button
+                  onClick={selectedActionId ? handleVote : handleConfirm}
+                  disabled={(!selectedActionId && !freeAction.trim()) || !canPlay}
+                  className="px-6 py-2.5 bg-red-700 hover:bg-red-600 disabled:bg-gray-800 disabled:text-gray-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors"
+                >
+                  {selectedActionId ? 'Voter' : 'Jouer'}
+                </button>
+              </div>
+
+              {/* Bouton Jouer l'action (pour les textes libres ou confirmer) */}
+              {(selectedActionId || freeAction.trim()) && (
+                <button
+                  onClick={handleConfirm}
+                  disabled={(!selectedActionId && !freeAction.trim()) || !canPlay}
+                  className="w-full py-3 border border-red-900/40 bg-red-950/10 hover:bg-red-950/20 disabled:opacity-40 text-red-400 text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors"
+                >
+                  Lancer l&apos;action
+                </button>
               )}
             </div>
           )}
@@ -331,7 +381,8 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
 
         {/* ── Sidebar fiche personnage ── */}
         <aside className="hidden lg:flex flex-col gap-4">
-          <div className="bg-black/30 border border-white/5 rounded-2xl p-5 flex flex-col gap-4 sticky top-6">
+          <div className="flex flex-col gap-4 sticky top-6">
+          <div className="bg-black/30 border border-white/5 rounded-2xl p-5 flex flex-col gap-4">
             <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">
               Fiche perso
             </p>
@@ -378,6 +429,83 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
               <span className="text-gray-600 font-black uppercase tracking-widest">Maîtrise</span>
               <span className="text-white font-black">+2</span>
             </div>
+          </div>
+
+          {/* Autres joueurs de la partie */}
+          {otherPlayers.length > 0 && (
+            <div className="bg-black/30 border border-white/5 rounded-2xl p-5 flex flex-col gap-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">
+                Compagnons ({otherPlayers.length})
+              </p>
+
+              {otherPlayers.map((member) => {
+                const hpRatio = member.maxHp
+                  ? ((member.currentHp ?? member.maxHp) / member.maxHp) * 100
+                  : 0;
+
+                return (
+                  <div
+                    key={member.userId}
+                    className="flex flex-col gap-2 pb-4 border-b border-white/5 last:border-0 last:pb-0"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 flex-shrink-0 rounded-full bg-black/40 border border-white/10 flex items-center justify-center relative">
+                        <User size={16} className="text-gray-600" />
+                        <span
+                          className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#0d0d0f] ${
+                            isOnline(member.userId) ? 'bg-green-500' : 'bg-gray-600'
+                          }`}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-black uppercase italic text-white truncate">
+                          {member.characterName ?? member.username}
+                        </p>
+                        {member.characterClass && (
+                          <p className="text-[8px] font-black uppercase tracking-widest text-gray-600">
+                            {member.characterClass}
+                          </p>
+                        )}
+                      </div>
+                      {isOnline(member.userId) ? (
+                        <span className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-green-500 border border-green-900/40 bg-green-950/20 px-1.5 py-0.5 rounded flex-shrink-0">
+                          <Wifi size={9} />
+                          En ligne
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-gray-500 border border-white/10 bg-white/5 px-1.5 py-0.5 rounded flex-shrink-0">
+                          <WifiOff size={9} />
+                          Hors ligne
+                        </span>
+                      )}
+                    </div>
+
+                    {member.maxHp && (
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-[9px] text-gray-600 font-black uppercase tracking-widest">
+                          <span>Vitalité</span>
+                          <span>{member.currentHp ?? member.maxHp}/{member.maxHp}</span>
+                        </div>
+                        <div className="h-1 bg-black/40 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-red-700 rounded-full transition-all"
+                            style={{ width: `${hpRatio}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {member.armorClass && (
+                      <div className="flex justify-between text-[9px]">
+                        <span className="text-gray-600 font-black uppercase tracking-widest">Armure</span>
+                        <span className="text-white font-black">{member.armorClass}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
           </div>
         </aside>
 

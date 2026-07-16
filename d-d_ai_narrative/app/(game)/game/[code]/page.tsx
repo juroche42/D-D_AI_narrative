@@ -46,6 +46,18 @@ export default async function GamePage({ params }: GamePageProps) {
   const playerEntry = room.players.find((p) => p.user.id === session.user.id);
   if (!playerEntry) redirect('/lobby');
 
+  const otherPlayers = room.players
+    .filter((p) => p.user.id !== session.user.id)
+    .map((p) => ({
+      userId:         p.user.id,
+      username:       p.user.username,
+      characterName:  p.character?.name,
+      characterClass: p.character?.class as string | undefined,
+      maxHp:          p.character?.maxHp ?? undefined,
+      currentHp:      p.character?.currentHp ?? undefined,
+      armorClass:     p.character?.armorClass ?? undefined,
+    }));
+
   const isFirstTurn = room.gameState.currentTurn === 1 && !room.gameState.narrativeContext;
 
   const lastEntry = await prisma.narrativeEntry.findFirst({
@@ -71,6 +83,7 @@ export default async function GamePage({ params }: GamePageProps) {
         currentHp:      playerEntry.character?.currentHp ?? undefined,
         armorClass:     playerEntry.character?.armorClass ?? undefined,
       }}
+      otherPlayers={otherPlayers}
       isFirstTurn={isFirstTurn}
       lastNarration={lastEntry?.content}
     />

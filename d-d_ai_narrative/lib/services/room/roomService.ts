@@ -8,6 +8,9 @@ import { broadcastToRoom } from '@/lib/sse/sseManager';
 
 const generateCode = customAlphabet('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 6);
 
+/** Durée de rétention d'une partie non terminée avant suppression automatique (7 jours). */
+export const UNFINISHED_GAME_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 /** DTO public — jamais exposer l'objet Prisma brut */
 export interface RoomPublic {
   id: string;
@@ -19,6 +22,17 @@ export interface RoomPublic {
   createdAt: Date;
   inviteLink: string;
   campaign?: { id: string; title: string; theme: string; difficulty: string } | null;
+}
+
+/** DTO d'une partie en cours reprenable par un joueur */
+export interface ResumableGame {
+  code: string;
+  name: string;
+  playerCount: number;
+  maxPlayers: number;
+  currentTurn: number;
+  lastActivityAt: Date;
+  campaign: { id: string; title: string; theme: string; difficulty: string } | null;
 }
 
 /**
@@ -60,6 +74,21 @@ export async function createRoom(userId: string, username: string, campaignId?: 
   });
 
   return toRoomPublic(room);
+}
+
+/**
+ * Retourne le code du salon en attente (lobby) dont le joueur est déjà membre,
+ * ou null s'il n'en a aucun. Un joueur ne peut être que dans un seul salon
+ * WAITING à la fois (garanti par createRoom/joinRoom).
+ */
+export async function getActiveLobbyCode(userId: string): Promise<string | null> {
+  const membership = await prisma.roomPlayer.findFirst({
+    where:   { userId, room: { status: RoomStatus.WAITING } },
+    select:  { room: { select: { code: true } } },
+    orderBy: { joinedAt: 'desc' },
+  });
+
+  return membership?.room.code ?? null;
 }
 
 /**
@@ -218,6 +247,15 @@ export async function updateRoomStatus(
     throw unprocessable('Sélectionnez une campagne avant de démarrer la partie');
   }
 
+  if (newStatus === 'IN_PROGRESS') {
+    const playersWithoutCharacter = await prisma.roomPlayer.count({
+      where: { roomId: room.id, characterId: null },
+    });
+    if (playersWithoutCharacter > 0) {
+      throw unprocessable('Tous les joueurs doivent choisir un personnage avant de démarrer');
+    }
+  }
+
   const updated = await prisma.room.update({
     where: { id: room.id },
     data: { status: newStatus },
@@ -335,6 +373,106 @@ export async function selectCampaign(
   });
 
   return toRoomPublic(updatedRoom);
+}
+
+/**
+ * Associe (ou retire) un personnage au joueur courant dans un salon.
+ * Chaque joueur ne peut sélectionner qu'un de ses propres personnages.
+ * Diffuse player_updated via SSE à tous les joueurs connectés.
+ *
+ * @throws 404 si salon, membership ou personnage introuvable
+ * @throws 403 si le personnage n'appartient pas au joueur
+ * @throws 409 si le salon n'est plus en WAITING
+ */
+export async function selectCharacter(
+  roomCode: string,
+  userId: string,
+  characterId: string | null,
+): Promise<void> {
+  const code = roomCode.toUpperCase();
+
+  const room = await prisma.room.findUnique({
+    where: { code },
+    include: { players: { where: { userId } } },
+  });
+
+  if (!room) throw notFound('Salon');
+
+  const membership = room.players[0];
+  if (!membership) throw notFound('Membership');
+  if (room.status !== RoomStatus.WAITING) {
+    throw conflict('Impossible de changer de personnage après le démarrage');
+  }
+
+  if (characterId !== null) {
+    const character = await prisma.character.findUnique({
+      where: { id: characterId },
+      select: { userId: true },
+    });
+    if (!character) throw notFound('Personnage');
+    if (character.userId !== userId) throw forbidden('Ce personnage ne vous appartient pas');
+  }
+
+  await prisma.roomPlayer.update({
+    where: { id: membership.id },
+    data: { characterId },
+  });
+
+  await broadcastPlayerUpdate(code, 'player_updated');
+}
+
+/**
+ * Supprime les parties non terminées (WAITING ou IN_PROGRESS) créées il y a
+ * plus de 7 jours. Le cascade Prisma nettoie GameState, joueurs, votes, etc.
+ * @returns le nombre de parties supprimées
+ */
+export async function deleteExpiredGames(): Promise<number> {
+  const cutoff = new Date(Date.now() - UNFINISHED_GAME_TTL_MS);
+
+  const { count } = await prisma.room.deleteMany({
+    where: {
+      status: { not: RoomStatus.FINISHED },
+      createdAt: { lt: cutoff },
+    },
+  });
+
+  return count;
+}
+
+/**
+ * Liste les parties en cours qu'un joueur peut reprendre.
+ * Une partie est reprenable si le salon est IN_PROGRESS, possède un GameState
+ * et que le joueur en est membre. Triées par activité la plus récente.
+ *
+ * Purge au passage les parties non terminées expirées (> 7 jours) afin de
+ * garder le « context save » propre.
+ */
+export async function getResumableGames(userId: string): Promise<ResumableGame[]> {
+  await deleteExpiredGames();
+
+  const rooms = await prisma.room.findMany({
+    where: {
+      status: RoomStatus.IN_PROGRESS,
+      players: { some: { userId } },
+      gameState: { isNot: null },
+    },
+    include: {
+      campaign: { select: { id: true, title: true, theme: true, difficulty: true } },
+      gameState: { select: { currentTurn: true, lastActivityAt: true } },
+      _count: { select: { players: true } },
+    },
+    orderBy: { gameState: { lastActivityAt: 'desc' } },
+  });
+
+  return rooms.map((room) => ({
+    code: room.code,
+    name: room.name,
+    playerCount: room._count.players,
+    maxPlayers: room.maxPlayers,
+    currentTurn: room.gameState?.currentTurn ?? 1,
+    lastActivityAt: room.gameState?.lastActivityAt ?? room.updatedAt,
+    campaign: room.campaign ?? null,
+  }));
 }
 
 function toRoomPublic(room: {
