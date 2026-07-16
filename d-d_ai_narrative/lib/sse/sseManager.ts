@@ -77,18 +77,19 @@ export function getClientCount(roomCode: string): number {
 
 // ─── Game SSE clients ────────────────────────────────────────────────────────
 
-export type GameSSEEventType = 'actions_ready' | 'vote_cast' | 'turn_resolving';
+export type GameSSEEventType = 'actions_ready' | 'vote_cast' | 'turn_resolving' | 'presence';
 
 export interface VoteCount { actionId: string; count: number }
 
 export interface GameSSEEvent {
-  type:      GameSSEEventType;
-  roomCode:  string;
-  turn:      number;
-  timestamp: number;
-  actions?:  { id: string; content: string; type: string }[];
-  votes?:    VoteCount[];
-  myVote?:   string | null;
+  type:          GameSSEEventType;
+  roomCode:      string;
+  turn:          number;
+  timestamp:     number;
+  actions?:      { id: string; content: string; type: string }[];
+  votes?:        VoteCount[];
+  myVote?:       string | null;
+  onlineUserIds?: string[];
 }
 
 type GameSSEClient = {
@@ -142,4 +143,24 @@ export function broadcastToGame(
       clients.delete(client.id);
     }
   }
+}
+
+/** Liste des userId actuellement connectés au flux de jeu d'une room (distincts). */
+export function getOnlineUserIds(roomCode: string): string[] {
+  const online = new Set<string>();
+  for (const client of getGameClients().values()) {
+    if (client.roomCode === roomCode) online.add(client.userId);
+  }
+  return [...online];
+}
+
+/** Diffuse à tous les clients de la room la liste des joueurs actuellement en ligne. */
+export function broadcastPresence(roomCode: string): void {
+  broadcastToGame(roomCode, {
+    type:          'presence',
+    roomCode,
+    turn:          0,
+    timestamp:     Date.now(),
+    onlineUserIds: getOnlineUserIds(roomCode),
+  });
 }

@@ -13,10 +13,12 @@ vi.mock('@/lib/prisma', () => ({
     },
     room: {
       findUnique: vi.fn(),
+      findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn(),
       delete: vi.fn(),
+      deleteMany: vi.fn(),
     },
     campaign: {
       findUnique: vi.fn(),
@@ -42,7 +44,7 @@ vi.mock('@/lib/sse/sseManager', () => ({
   broadcastToRoom: vi.fn(),
 }));
 
-import { createRoom, getRoomByCode, getRoomPreview, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady, selectCampaign, selectCharacter } from './roomService';
+import { createRoom, getRoomByCode, getRoomPreview, getActiveLobbyCode, getResumableGames, deleteExpiredGames, UNFINISHED_GAME_TTL_MS, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady, selectCampaign, selectCharacter } from './roomService';
 import { prisma } from '@/lib/prisma';
 import { broadcastToRoom } from '@/lib/sse/sseManager';
 import { broadcastPlayerUpdate } from '@/lib/sse/sseService';
@@ -652,5 +654,118 @@ describe('selectCharacter', () => {
       .rejects.toMatchObject({ statusCode: 403 });
     expect(prisma.roomPlayer.update).not.toHaveBeenCalled();
     expect(broadcastPlayerUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('getResumableGames', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.room.deleteMany).mockResolvedValue({ count: 0 } as never);
+  });
+
+  const RESUMABLE_ROOM = {
+    ...MOCK_ROOM,
+    status: RoomStatus.IN_PROGRESS,
+    campaign: { id: 'camp_1', title: 'La Crypte Oubliée', theme: 'HORROR', difficulty: 'HARD' },
+    gameState: { currentTurn: 4, lastActivityAt: new Date('2026-07-15') },
+    _count: { players: 3 },
+  };
+
+  it('ne requête que les parties IN_PROGRESS avec GameState dont le joueur est membre', async () => {
+    vi.mocked(prisma.room.findMany).mockResolvedValue([] as never);
+
+    await getResumableGames('user_1');
+
+    expect(prisma.room.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: RoomStatus.IN_PROGRESS,
+          players: { some: { userId: 'user_1' } },
+          gameState: { isNot: null },
+        },
+        orderBy: { gameState: { lastActivityAt: 'desc' } },
+      }),
+    );
+  });
+
+  it('mappe le scénario, le nombre de joueurs et le tour courant', async () => {
+    vi.mocked(prisma.room.findMany).mockResolvedValue([RESUMABLE_ROOM] as never);
+
+    const games = await getResumableGames('user_1');
+
+    expect(games).toHaveLength(1);
+    expect(games[0]).toMatchObject({
+      code: 'ABC123',
+      playerCount: 3,
+      maxPlayers: 6,
+      currentTurn: 4,
+      campaign: { title: 'La Crypte Oubliée', theme: 'HORROR' },
+    });
+  });
+
+  it('retourne un tableau vide si aucune partie reprenable', async () => {
+    vi.mocked(prisma.room.findMany).mockResolvedValue([] as never);
+
+    const games = await getResumableGames('user_1');
+
+    expect(games).toEqual([]);
+  });
+
+  it('purge les parties expirées avant de lister', async () => {
+    vi.mocked(prisma.room.findMany).mockResolvedValue([] as never);
+
+    await getResumableGames('user_1');
+
+    expect(prisma.room.deleteMany).toHaveBeenCalledOnce();
+  });
+});
+
+describe('getActiveLobbyCode', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('retourne le code du salon WAITING dont le joueur est membre', async () => {
+    vi.mocked(prisma.roomPlayer.findFirst).mockResolvedValue(
+      { room: { code: 'ABC123' } } as never,
+    );
+
+    const code = await getActiveLobbyCode('user_1');
+
+    expect(code).toBe('ABC123');
+    expect(prisma.roomPlayer.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: 'user_1', room: { status: RoomStatus.WAITING } },
+      }),
+    );
+  });
+
+  it("retourne null si le joueur n'est dans aucun salon en attente", async () => {
+    vi.mocked(prisma.roomPlayer.findFirst).mockResolvedValue(null);
+
+    expect(await getActiveLobbyCode('user_1')).toBeNull();
+  });
+});
+
+describe('deleteExpiredGames', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('supprime les parties non terminées créées il y a plus de 7 jours', async () => {
+    vi.mocked(prisma.room.deleteMany).mockResolvedValue({ count: 3 } as never);
+    const before = Date.now();
+
+    const count = await deleteExpiredGames();
+
+    expect(count).toBe(3);
+    const arg = vi.mocked(prisma.room.deleteMany).mock.calls[0][0];
+    expect(arg?.where?.status).toEqual({ not: RoomStatus.FINISHED });
+    // Le seuil est ~7 jours dans le passé
+    const cutoff = (arg?.where?.createdAt as { lt: Date }).lt.getTime();
+    expect(before - cutoff).toBeGreaterThanOrEqual(UNFINISHED_GAME_TTL_MS - 1000);
+    expect(before - cutoff).toBeLessThanOrEqual(UNFINISHED_GAME_TTL_MS + 1000);
+  });
+
+  it('retourne 0 quand aucune partie n\'est expirée', async () => {
+    vi.mocked(prisma.room.deleteMany).mockResolvedValue({ count: 0 } as never);
+
+    expect(await deleteExpiredGames()).toBe(0);
   });
 });

@@ -6,12 +6,14 @@ export interface VoteCount { actionId: string; count: number }
 export interface GameActionItem { id: string; content: string; type: string }
 
 export interface GameEventsState {
-  actions:     GameActionItem[];
-  votes:       VoteCount[];
-  myVote:      string | null;
-  currentTurn: number;
-  ready:       boolean;   // true dès qu'on a reçu actions_ready
-  error:       string | null;
+  actions:       GameActionItem[];
+  votes:         VoteCount[];
+  myVote:        string | null;
+  currentTurn:   number;
+  ready:         boolean;         // true dès qu'on a reçu actions_ready
+  onlineUserIds: string[];        // joueurs actuellement connectés au flux de jeu
+  presenceReady: boolean;         // true dès qu'on a reçu un event presence
+  error:         string | null;
 }
 
 export type UseGameEventsResult = GameEventsState & {
@@ -20,12 +22,14 @@ export type UseGameEventsResult = GameEventsState & {
 };
 
 const INITIAL_STATE: GameEventsState = {
-  actions:     [],
-  votes:       [],
-  myVote:      null,
-  currentTurn: 1,
-  ready:       false,
-  error:       null,
+  actions:       [],
+  votes:         [],
+  myVote:        null,
+  currentTurn:   1,
+  ready:         false,
+  onlineUserIds: [],
+  presenceReady: false,
+  error:         null,
 };
 
 /**
@@ -50,11 +54,12 @@ export function useGameEvents(roomCode: string): UseGameEventsResult {
     es.onmessage = (e: MessageEvent) => {
       try {
         const event = JSON.parse(e.data as string) as {
-          type:     string;
-          turn:     number;
-          actions?: GameActionItem[];
-          votes?:   VoteCount[];
-          myVote?:  string | null;
+          type:           string;
+          turn:           number;
+          actions?:       GameActionItem[];
+          votes?:         VoteCount[];
+          myVote?:        string | null;
+          onlineUserIds?: string[];
         };
 
         if (event.type === 'actions_ready') {
@@ -73,6 +78,12 @@ export function useGameEvents(roomCode: string): UseGameEventsResult {
             ...s,
             votes:  event.votes  ?? s.votes,
             myVote: event.myVote !== undefined ? (event.myVote ?? null) : s.myVote,
+          }));
+        } else if (event.type === 'presence') {
+          setState((s) => ({
+            ...s,
+            onlineUserIds: event.onlineUserIds ?? s.onlineUserIds,
+            presenceReady: true,
           }));
         }
       } catch {

@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { registerGameClient, unregisterGameClient } from '@/lib/sse/sseManager';
+import { registerGameClient, unregisterGameClient, broadcastPresence } from '@/lib/sse/sseManager';
 import { getOrCreateTurnActions, getVoteState } from '@/lib/services/game/voteService';
 import { getGameContext } from '@/lib/services/ai/narrativeService';
 
@@ -56,6 +56,9 @@ export async function GET(
     async start(controller) {
       clientId = registerGameClient(roomCode, session.user.id, controller);
 
+      // Prévenir tous les joueurs de la room qu'un joueur vient de se connecter
+      broadcastPresence(roomCode);
+
       keepaliveTimer = setInterval(() => {
         try {
           controller.enqueue(encoder.encode(': keepalive\n\n'));
@@ -88,12 +91,15 @@ export async function GET(
     cancel() {
       if (keepaliveTimer) clearInterval(keepaliveTimer);
       if (clientId) unregisterGameClient(clientId);
+      // Prévenir les joueurs restants que ce joueur s'est déconnecté
+      broadcastPresence(roomCode);
     },
   });
 
   req.signal.addEventListener('abort', () => {
     if (keepaliveTimer) clearInterval(keepaliveTimer);
     if (clientId) unregisterGameClient(clientId);
+    broadcastPresence(roomCode);
   });
 
   return new Response(stream, {
