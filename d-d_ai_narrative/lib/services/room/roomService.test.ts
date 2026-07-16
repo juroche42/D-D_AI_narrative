@@ -44,7 +44,7 @@ vi.mock('@/lib/sse/sseManager', () => ({
   broadcastToRoom: vi.fn(),
 }));
 
-import { createRoom, getRoomByCode, getRoomPreview, getResumableGames, deleteExpiredGames, UNFINISHED_GAME_TTL_MS, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady, selectCampaign, selectCharacter } from './roomService';
+import { createRoom, getRoomByCode, getRoomPreview, getActiveLobbyCode, getResumableGames, deleteExpiredGames, UNFINISHED_GAME_TTL_MS, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady, selectCampaign, selectCharacter } from './roomService';
 import { prisma } from '@/lib/prisma';
 import { broadcastToRoom } from '@/lib/sse/sseManager';
 import { broadcastPlayerUpdate } from '@/lib/sse/sseService';
@@ -717,6 +717,31 @@ describe('getResumableGames', () => {
     await getResumableGames('user_1');
 
     expect(prisma.room.deleteMany).toHaveBeenCalledOnce();
+  });
+});
+
+describe('getActiveLobbyCode', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('retourne le code du salon WAITING dont le joueur est membre', async () => {
+    vi.mocked(prisma.roomPlayer.findFirst).mockResolvedValue(
+      { room: { code: 'ABC123' } } as never,
+    );
+
+    const code = await getActiveLobbyCode('user_1');
+
+    expect(code).toBe('ABC123');
+    expect(prisma.roomPlayer.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: 'user_1', room: { status: RoomStatus.WAITING } },
+      }),
+    );
+  });
+
+  it("retourne null si le joueur n'est dans aucun salon en attente", async () => {
+    vi.mocked(prisma.roomPlayer.findFirst).mockResolvedValue(null);
+
+    expect(await getActiveLobbyCode('user_1')).toBeNull();
   });
 });
 

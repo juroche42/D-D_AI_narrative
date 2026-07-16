@@ -77,6 +77,21 @@ export async function createRoom(userId: string, username: string, campaignId?: 
 }
 
 /**
+ * Retourne le code du salon en attente (lobby) dont le joueur est déjà membre,
+ * ou null s'il n'en a aucun. Un joueur ne peut être que dans un seul salon
+ * WAITING à la fois (garanti par createRoom/joinRoom).
+ */
+export async function getActiveLobbyCode(userId: string): Promise<string | null> {
+  const membership = await prisma.roomPlayer.findFirst({
+    where:   { userId, room: { status: RoomStatus.WAITING } },
+    select:  { room: { select: { code: true } } },
+    orderBy: { joinedAt: 'desc' },
+  });
+
+  return membership?.room.code ?? null;
+}
+
+/**
  * Récupère un salon par son code (insensible à la casse).
  * @throws AppError 404 si le salon n'existe pas
  */
