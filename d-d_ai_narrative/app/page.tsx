@@ -10,7 +10,7 @@ export default function HomePage() {
 
         <div className="relative z-20 mx-auto max-w-3xl space-y-8">
           <div className="flex justify-center">
-            <span className="rounded-full border border-red-500/30 bg-red-600/20 px-2.5 py-0.5 text-[7px] font-black uppercase tracking-[0.12em] text-red-500 backdrop-blur-sm sm:px-6 sm:py-1.5 sm:text-[10px] sm:tracking-[0.3em]">
+            <span className="rounded-full border border-red-500/30  px-2.5 py-0.5 text-[7px] font-black uppercase tracking-[0.12em] text-red-500 backdrop-blur-sm sm:px-6 sm:py-1.5 sm:text-[10px] sm:tracking-[0.3em]">
               Maître du Jeu IA de Nouvelle Génération
             </span>
           </div>

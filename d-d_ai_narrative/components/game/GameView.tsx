@@ -23,10 +23,13 @@ export interface CurrentPlayer {
   armorClass?:     number;
 }
 
+export type PartyMember = CurrentPlayer;
+
 export interface GameViewProps {
   roomCode:      string;
   campaign:      { title: string; theme: string; difficulty: string };
   currentPlayer: CurrentPlayer;
+  otherPlayers?: PartyMember[];
   isFirstTurn:   boolean;
   lastNarration?: string;
 }
@@ -40,7 +43,7 @@ const THEME_GRADIENT: Record<string, string> = {
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 
-export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastNarration }: GameViewProps) {
+export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [], isFirstTurn, lastNarration }: GameViewProps) {
   const [phase, setPhase]               = useState<GamePhase>('intro_loading');
   const [narrativeHistory, setHistory]  = useState<string[]>(lastNarration ? [lastNarration] : []);
   const [selectedActionId, setSelected] = useState<string | null>(null);
@@ -307,7 +310,8 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
 
         {/* ── Sidebar fiche personnage ── */}
         <aside className="hidden lg:flex flex-col gap-4">
-          <div className="bg-black/30 border border-white/5 rounded-2xl p-5 flex flex-col gap-4 sticky top-6">
+          <div className="flex flex-col gap-4 sticky top-6">
+          <div className="bg-black/30 border border-white/5 rounded-2xl p-5 flex flex-col gap-4">
             <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">
               Fiche perso
             </p>
@@ -354,6 +358,67 @@ export function GameView({ roomCode, campaign, currentPlayer, isFirstTurn, lastN
               <span className="text-gray-600 font-black uppercase tracking-widest">Maîtrise</span>
               <span className="text-white font-black">+2</span>
             </div>
+          </div>
+
+          {/* Autres joueurs de la partie */}
+          {otherPlayers.length > 0 && (
+            <div className="bg-black/30 border border-white/5 rounded-2xl p-5 flex flex-col gap-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">
+                Compagnons ({otherPlayers.length})
+              </p>
+
+              {otherPlayers.map((member) => {
+                const hpRatio = member.maxHp
+                  ? ((member.currentHp ?? member.maxHp) / member.maxHp) * 100
+                  : 0;
+
+                return (
+                  <div
+                    key={member.userId}
+                    className="flex flex-col gap-2 pb-4 border-b border-white/5 last:border-0 last:pb-0"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 flex-shrink-0 rounded-full bg-black/40 border border-white/10 flex items-center justify-center">
+                        <User size={16} className="text-gray-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-black uppercase italic text-white truncate">
+                          {member.characterName ?? member.username}
+                        </p>
+                        {member.characterClass && (
+                          <p className="text-[8px] font-black uppercase tracking-widest text-gray-600">
+                            {member.characterClass}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {member.maxHp && (
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-[9px] text-gray-600 font-black uppercase tracking-widest">
+                          <span>Vitalité</span>
+                          <span>{member.currentHp ?? member.maxHp}/{member.maxHp}</span>
+                        </div>
+                        <div className="h-1 bg-black/40 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-red-700 rounded-full transition-all"
+                            style={{ width: `${hpRatio}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {member.armorClass && (
+                      <div className="flex justify-between text-[9px]">
+                        <span className="text-gray-600 font-black uppercase tracking-widest">Armure</span>
+                        <span className="text-white font-black">{member.armorClass}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
           </div>
         </aside>
 

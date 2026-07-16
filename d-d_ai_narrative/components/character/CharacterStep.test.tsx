@@ -10,6 +10,12 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
 }));
 
+const mockSelectCharacterAction = vi.fn();
+
+vi.mock('@/app/(lobby)/lobby/actions', () => ({
+  selectCharacterAction: (...args: unknown[]) => mockSelectCharacterAction(...args),
+}));
+
 const defaultProps = {
   races: RACE_DEFINITIONS,
   classes: CLASS_DEFINITIONS,
@@ -244,6 +250,51 @@ describe('CharacterStep', () => {
       await waitFor(() => {
         expect(screen.getByText('Une erreur réseau est survenue.')).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('soumission depuis un salon (roomCode)', () => {
+    function goToStep2AndFill(name = 'Nangaim') {
+      render(<CharacterStep {...defaultProps} roomCode="ABC123" />);
+      fireEvent.click(screen.getByText('Elfe'));
+      fireEvent.click(screen.getByRole('button', { name: /suivant/i }));
+      fireEvent.click(screen.getByText('Mage'));
+      fireEvent.click(screen.getByRole('button', { name: /suivant/i }));
+      fireEvent.change(screen.getByPlaceholderText(/entrez un nom/i), {
+        target: { value: name },
+      });
+    }
+
+    it('sélectionne le personnage créé dans le salon puis y redirige', async () => {
+      vi.mocked(global.fetch).mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true, data: { id: 'char-1' } }),
+      } as Response);
+      mockSelectCharacterAction.mockResolvedValue({ success: true });
+
+      goToStep2AndFill('Nangaim');
+      fireEvent.click(screen.getByRole('button', { name: /finaliser/i }));
+
+      await waitFor(() => {
+        expect(mockSelectCharacterAction).toHaveBeenCalledWith('ABC123', 'char-1');
+        expect(mockPush).toHaveBeenCalledWith('/lobby/ABC123');
+      });
+    });
+
+    it('affiche une erreur si la sélection échoue', async () => {
+      vi.mocked(global.fetch).mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true, data: { id: 'char-1' } }),
+      } as Response);
+      mockSelectCharacterAction.mockResolvedValue({ success: false, error: 'Salon introuvable' });
+
+      goToStep2AndFill('Nangaim');
+      fireEvent.click(screen.getByRole('button', { name: /finaliser/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Salon introuvable')).toBeInTheDocument();
+      });
+      expect(mockPush).not.toHaveBeenCalledWith('/lobby/ABC123');
     });
   });
 });
