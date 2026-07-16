@@ -2,8 +2,48 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { completeStream, complete } from '@/lib/services/ai/openAIService';
 import { buildRagContext } from '@/lib/services/ai/ragService';
-import { NarrativeEntryType, TurnActionType } from '@/app/generated/prisma/enums';
+import { NarrativeEntryType, TurnActionType, RoomStatus } from '@/app/generated/prisma/enums';
+import { broadcastToGame } from '@/lib/sse/sseManager';
 import type { ChatMessage } from '@/lib/services/ai/types';
+
+// ─── Fin d'histoire ─────────────────────────────────────────────────────────────
+
+/** Marqueur émis par l'IA en fin de narration lorsque l'aventure est conclue. */
+const END_SENTINEL = '[FIN]';
+
+/**
+ * Nombre de tours maximum avant de forcer la conclusion de l'histoire.
+ * Garde-fou : l'IA conclut normalement plus tôt via le marqueur [FIN], mais
+ * cette borne évite les parties sans fin si le dénouement n'est jamais atteint.
+ */
+const MAX_STORY_TURNS = 30;
+
+/**
+ * Filtre de streaming qui supprime un marqueur sentinelle sans altérer le
+ * découpage des tokens qui ne le contiennent pas. Retient uniquement le suffixe
+ * courant susceptible de faire partie du marqueur, puis le nettoie à la fin.
+ */
+function createSentinelStripper(sentinel: string, emit: (chunk: string) => void) {
+  let hold = '';
+  return {
+    push(token: string) {
+      hold += token;
+      let keep  = 0;
+      const max = Math.min(hold.length, sentinel.length);
+      for (let n = max; n > 0; n--) {
+        if (sentinel.startsWith(hold.slice(hold.length - n))) { keep = n; break; }
+      }
+      const flushable = hold.slice(0, hold.length - keep);
+      if (flushable) emit(flushable);
+      hold = hold.slice(hold.length - keep);
+    },
+    end() {
+      const remainder = hold.split(sentinel).join('');
+      if (remainder) emit(remainder);
+      hold = '';
+    },
+  };
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -303,6 +343,16 @@ export async function generateSceneNarrative(
   const ragQuery  = `${chosenAction} ${ctx.campaignStartLocation}`;
   const ragResult = await buildRagContext(ragQuery);
 
+  const isFinalTurn = ctx.currentTurn >= MAX_STORY_TURNS;
+
+  const endingInstructions = isFinalTurn
+    ? `## Dénouement final — conclusion obligatoire
+- L'aventure a atteint sa limite : rédige un épilogue qui conclut définitivement la quête principale ("${ctx.campaignMainQuest}").
+- Termine impérativement ta réponse par une dernière ligne contenant EXACTEMENT : ${END_SENTINEL}`
+    : `## Fin de l'aventure
+- Si la quête principale ("${ctx.campaignMainQuest}") est accomplie ou que l'histoire atteint une conclusion naturelle et satisfaisante, rédige un épilogue puis termine ta réponse par une dernière ligne contenant EXACTEMENT : ${END_SENTINEL}
+- Sinon, ne mets PAS ${END_SENTINEL} et laisse l'aventure ouverte sur une nouvelle situation.`;
+
   const messages: ChatMessage[] = [
     {
       role: 'system',
@@ -316,8 +366,10 @@ ${ctx.narrativeContext || '(début de partie)'}
 ## Instructions
 - Décris les conséquences de l'action choisie et la nouvelle situation.
 - 150-250 mots, en français, à la 2ème personne du pluriel ("vous").
-- Termine par une situation de tension qui invite à agir.
-- NE génère PAS de nouvelles actions — elles seront proposées séparément.`,
+- ${isFinalTurn ? "Conclus l'aventure (voir ci-dessous)." : "Termine par une situation de tension qui invite à agir, sauf si l'histoire se conclut (voir ci-dessous)."}
+- NE génère PAS de nouvelles actions — elles seront proposées séparément.
+
+${endingInstructions}`,
     },
     ...history,
     {
