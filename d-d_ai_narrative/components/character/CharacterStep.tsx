@@ -8,6 +8,7 @@ import type { ClassDefinition } from '@/lib/constants/classes';
 import { SelectionCard } from './SelectionCard';
 import { StepIndicator } from './StepIndicator';
 import { CharacterPreview } from './CharacterPreview';
+import { selectCharacterAction } from '@/app/(lobby)/lobby/actions';
 
 const STEPS = ['Lignée', 'Vocation', 'Identité'] as const;
 
@@ -23,9 +24,11 @@ const DEFAULT_STATS = {
 interface CharacterStepProps {
   races: RaceDefinition[];
   classes: ClassDefinition[];
+  /** Code du salon d'origine : si fourni, le personnage créé y est sélectionné puis on y retourne. */
+  roomCode?: string;
 }
 
-export function CharacterStep({ races, classes }: CharacterStepProps) {
+export function CharacterStep({ races, classes, roomCode }: CharacterStepProps) {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedRaceId, setSelectedRaceId] = useState<Race | null>(null);
@@ -79,6 +82,17 @@ export function CharacterStep({ races, classes }: CharacterStepProps) {
 
       if (!res.ok) {
         setApiError(body.message ?? 'Une erreur est survenue.');
+        return;
+      }
+
+      // Retour au salon d'origine avec le personnage fraîchement créé sélectionné.
+      if (roomCode) {
+        const result = await selectCharacterAction(roomCode, body.data.id);
+        if (!result.success) {
+          setApiError(result.error ?? 'Personnage créé, mais impossible de le sélectionner.');
+          return;
+        }
+        router.push(`/lobby/${roomCode}`);
         return;
       }
 

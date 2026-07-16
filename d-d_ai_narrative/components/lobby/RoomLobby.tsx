@@ -14,6 +14,9 @@ import { RoomStatusBadge } from '@/components/lobby/RoomStatusBadge';
 import { leaveRoomAction, startGameAction, toggleReadyAction } from '@/app/(lobby)/lobby/actions';
 import { useRoomPlayers } from '@/hooks/useRoomPlayers';
 import { THEME_CONFIG, DIFFICULTY_CONFIG, type CampaignThemeKey, type CampaignDifficultyKey } from '@/lib/constants/campaign';
+import { RACE_MAP } from '@/lib/constants/races';
+import { CLASS_MAP } from '@/lib/constants/classes';
+import type { Race, CharClass } from '@/app/generated/prisma/enums';
 import { CampaignSelectModal } from '@/components/lobby/CampaignSelectModal';
 import { CharacterSelectModal } from '@/components/lobby/CharacterSelectModal';
 
@@ -203,7 +206,7 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
                 )}
 
                 {/* US-04-04 — Sélection personnage */}
-                {myPlayer?.characterId ? (
+                {myPlayer?.character ? (
                   <div className="bg-black/20 p-6 rounded-2xl border border-white/10 flex flex-col gap-3 min-h-30 relative overflow-hidden group">
                     <div className="absolute top-0 left-0 right-0 h-0.5 bg-red-600/60" />
                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">Héros sélectionné</p>
@@ -211,9 +214,16 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
                       <div className="w-10 h-10 flex-shrink-0 bg-red-900/40 rounded-xl flex items-center justify-center border border-red-900/30">
                         <User className="text-red-500" size={20} />
                       </div>
-                      <p className="text-sm font-black text-white uppercase italic leading-tight">
-                        Votre incarnation est prête
-                      </p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-white uppercase italic leading-tight truncate">
+                          {myPlayer.character.name}
+                        </p>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-widest">
+                          {RACE_MAP[myPlayer.character.race as Race]?.name ?? myPlayer.character.race}
+                          {' · '}
+                          {CLASS_MAP[myPlayer.character.class as CharClass]?.name ?? myPlayer.character.class}
+                        </p>
+                      </div>
                     </div>
                     {roomStatus === 'WAITING' && (
                       <button

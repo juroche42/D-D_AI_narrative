@@ -168,7 +168,7 @@ export function CharacterSelectModal({
         {/* Footer */}
         <div className="px-6 py-4 border-t border-white/5 flex justify-end">
           <button
-            onClick={() => router.push('/characters/create')}
+            onClick={() => router.push(`/characters/create?room=${encodeURIComponent(roomCode)}`)}
             className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-black uppercase tracking-widest text-xs px-6 py-3 rounded-xl transition-colors shadow-lg shadow-red-600/20"
           >
             <Plus size={14} />

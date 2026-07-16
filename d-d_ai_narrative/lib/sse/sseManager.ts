@@ -4,6 +4,7 @@ export interface SSEPlayer {
   userId: string;
   username: string;
   characterId: string | null;
+  character: { name: string; race: string; class: string } | null;
   isReady: boolean;
   isHost: boolean;
   joinedAt: Date;

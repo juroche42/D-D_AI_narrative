@@ -9,15 +9,22 @@ export const metadata: Metadata = {
   title: 'Votre incarnation - D&D AI Narrative',
 };
 
-export default async function CreateCharacterPage() {
+interface Props {
+  searchParams: Promise<{ room?: string }>;
+}
+
+export default async function CreateCharacterPage({ searchParams }: Props) {
   const session = await auth();
   if (!session?.user) redirect('/login');
+
+  const { room } = await searchParams;
 
   return <>
     <h1 className="text-3xl font-bold mb-6 uppercase italic text-center">Votre incarnation</h1>
     <CharacterStep
         races={RACE_DEFINITIONS}
         classes={CLASS_DEFINITIONS}
+        roomCode={room}
     />
   </>;
 }
