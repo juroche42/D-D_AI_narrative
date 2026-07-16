@@ -15,6 +15,7 @@ import { leaveRoomAction, startGameAction, toggleReadyAction } from '@/app/(lobb
 import { useRoomPlayers } from '@/hooks/useRoomPlayers';
 import { THEME_CONFIG, DIFFICULTY_CONFIG, type CampaignThemeKey, type CampaignDifficultyKey } from '@/lib/constants/campaign';
 import { CampaignSelectModal } from '@/components/lobby/CampaignSelectModal';
+import { CharacterSelectModal } from '@/components/lobby/CharacterSelectModal';
 
 interface CurrentUser {
   id: string;
@@ -36,6 +37,7 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
   const [startError, setStartError] = useState<string | null>(null);
   const [readyError, setReadyError] = useState<string | null>(null);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
+  const [showCharacterModal, setShowCharacterModal] = useState(false);
 
   const { players, roomStatus, status: sseStatus, error: sseError, selectedCampaign } = useRoomPlayers(room.code, room.campaign ?? undefined);
 
@@ -201,14 +203,15 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
                 )}
 
                 {/* US-04-04 — Sélection personnage */}
-                <a
-                  href="/characters/create"
+                <button
+                  type="button"
+                  onClick={() => setShowCharacterModal(true)}
                   className="bg-black/20 p-6 rounded-2xl border border-dashed border-white/20 flex flex-col items-center justify-center gap-2 min-h-30 text-gray-400 hover:border-red-600/50 hover:text-red-400 transition-colors group"
                 >
                   <User size={28} className="group-hover:scale-110 transition-transform" />
-                  <p className="text-xs font-bold uppercase tracking-wide">Créer votre héros</p>
+                  <p className="text-xs font-bold uppercase tracking-wide">Choisir un héros</p>
                   <p className="text-[10px] uppercase tracking-widest opacity-60">Cliquez pour commencer</p>
-                </a>
+                </button>
               </div>
 
               {/* Footer actions */}
@@ -353,6 +356,10 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
           currentCampaignId={selectedCampaign?.id ?? null}
           onClose={() => setShowCampaignModal(false)}
         />
+      )}
+
+      {showCharacterModal && (
+        <CharacterSelectModal onClose={() => setShowCharacterModal(false)} />
       )}
     </div>
   );
