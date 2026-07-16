@@ -337,6 +337,52 @@ export async function selectCampaign(
   return toRoomPublic(updatedRoom);
 }
 
+/**
+ * Associe (ou retire) un personnage au joueur courant dans un salon.
+ * Chaque joueur ne peut sélectionner qu'un de ses propres personnages.
+ * Diffuse player_updated via SSE à tous les joueurs connectés.
+ *
+ * @throws 404 si salon, membership ou personnage introuvable
+ * @throws 403 si le personnage n'appartient pas au joueur
+ * @throws 409 si le salon n'est plus en WAITING
+ */
+export async function selectCharacter(
+  roomCode: string,
+  userId: string,
+  characterId: string | null,
+): Promise<void> {
+  const code = roomCode.toUpperCase();
+
+  const room = await prisma.room.findUnique({
+    where: { code },
+    include: { players: { where: { userId } } },
+  });
+
+  if (!room) throw notFound('Salon');
+
+  const membership = room.players[0];
+  if (!membership) throw notFound('Membership');
+  if (room.status !== RoomStatus.WAITING) {
+    throw conflict('Impossible de changer de personnage après le démarrage');
+  }
+
+  if (characterId !== null) {
+    const character = await prisma.character.findUnique({
+      where: { id: characterId },
+      select: { userId: true },
+    });
+    if (!character) throw notFound('Personnage');
+    if (character.userId !== userId) throw forbidden('Ce personnage ne vous appartient pas');
+  }
+
+  await prisma.roomPlayer.update({
+    where: { id: membership.id },
+    data: { characterId },
+  });
+
+  await broadcastPlayerUpdate(code, 'player_updated');
+}
+
 function toRoomPublic(room: {
   id: string;
   code: string;

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Plus, User, Heart, Shield, Loader2 } from 'lucide-react';
+import { X, Plus, User, Heart, Shield, Check, Loader2 } from 'lucide-react';
+import { selectCharacterAction } from '@/app/(lobby)/lobby/actions';
 import { RACE_MAP } from '@/lib/constants/races';
 import { CLASS_MAP } from '@/lib/constants/classes';
 import type { Race, CharClass } from '@/app/generated/prisma/enums';
@@ -19,17 +20,23 @@ interface CharacterSummary {
 }
 
 interface CharacterSelectModalProps {
+  roomCode: string;
+  currentCharacterId?: string | null;
   onClose: () => void;
 }
 
-export function CharacterSelectModal({ onClose }: CharacterSelectModalProps) {
+export function CharacterSelectModal({
+  roomCode,
+  currentCharacterId,
+  onClose,
+}: CharacterSelectModalProps) {
   const router = useRouter();
   const [characters, setCharacters] = useState<CharacterSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setIsLoading(true);
     fetch('/api/characters?limit=50')
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -48,6 +55,18 @@ export function CharacterSelectModal({ onClose }: CharacterSelectModalProps) {
       })
       .finally(() => setIsLoading(false));
   }, []);
+
+  const handleSelect = (characterId: string) => {
+    setError(null);
+    startTransition(async () => {
+      const result = await selectCharacterAction(roomCode, characterId);
+      if (!result.success) {
+        setError(result.error ?? 'Erreur lors de la sélection du personnage');
+        return;
+      }
+      onClose();
+    });
+  };
 
   return (
     <div
@@ -93,18 +112,25 @@ export function CharacterSelectModal({ onClose }: CharacterSelectModalProps) {
             characters.map((character) => {
               const race = RACE_MAP[character.race];
               const charClass = CLASS_MAP[character.class];
+              const isSelected = character.id === currentCharacterId;
 
               return (
-                <div
+                <button
                   key={character.id}
-                  className="w-full p-4 rounded-xl border border-white/10 bg-black/20 flex items-center gap-4"
+                  onClick={() => handleSelect(character.id)}
+                  disabled={isPending || isSelected}
+                  className={`w-full p-4 rounded-xl border text-left transition-all flex items-center gap-4 ${
+                    isSelected
+                      ? 'border-red-700 bg-red-950/20 cursor-default'
+                      : 'border-white/10 bg-black/20 hover:border-white/20 hover:bg-black/40 disabled:opacity-50'
+                  }`}
                 >
                   <div className="w-12 h-12 flex-shrink-0 bg-red-900/40 rounded-xl flex items-center justify-center border border-red-900/30">
                     <User className="text-red-500" size={22} />
                   </div>
 
                   <div className="flex-1 min-w-0 space-y-1">
-                    <p className="text-sm font-black text-white uppercase italic leading-tight truncate">
+                    <p className={`text-sm font-black uppercase italic leading-tight truncate ${isSelected ? 'text-red-400' : 'text-white'}`}>
                       {character.name}
                     </p>
                     <p className="text-[10px] text-gray-500 uppercase tracking-widest">
@@ -122,7 +148,11 @@ export function CharacterSelectModal({ onClose }: CharacterSelectModalProps) {
                       {character.armorClass}
                     </span>
                   </div>
-                </div>
+
+                  {isSelected && (
+                    <Check size={18} className="text-red-500 shrink-0" />
+                  )}
+                </button>
               );
             })
           )}

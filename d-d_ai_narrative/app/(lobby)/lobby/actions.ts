@@ -1,7 +1,7 @@
 'use server';
 
 import { auth } from '@/lib/auth';
-import { createRoom, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady, selectCampaign } from '@/lib/services/room';
+import { createRoom, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady, selectCampaign, selectCharacter } from '@/lib/services/room';
 import type { RoomPublic } from '@/lib/services/room';
 import { JoinRoomSchema } from '@/lib/validations/room';
 import { redirect } from 'next/navigation';
@@ -170,6 +170,29 @@ export async function selectCampaignAction(
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Erreur lors de la sélection',
+    };
+  }
+}
+
+export interface SelectCharacterResult {
+  success: boolean;
+  error?: string;
+}
+
+export async function selectCharacterAction(
+  roomCode: string,
+  characterId: string | null,
+): Promise<SelectCharacterResult> {
+  const session = await auth();
+  if (!session?.user) redirect('/login');
+
+  try {
+    await selectCharacter(roomCode, session.user.id, characterId);
+    return { success: true };
+  } catch (error: unknown) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erreur lors de la sélection du personnage',
     };
   }
 }
