@@ -1,11 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   AlertCircle,
   ChevronRight,
   Loader2,
+  Play,
   Sparkles,
+  Users,
   User,
 } from 'lucide-react';
 
@@ -17,6 +20,7 @@ import { LogoutButton } from '@/components/layout/LogoutButton';
 import { CharacterPreview } from '@/components/character/CharacterPreview';
 import { RACE_MAP } from '@/lib/constants/races';
 import { CLASS_MAP } from '@/lib/constants/classes';
+import { THEME_CONFIG, type CampaignThemeKey } from '@/lib/constants/campaign';
 
 type UserMeApiResponse = {
   success: boolean;
@@ -63,6 +67,23 @@ type CharactersApiResponse = {
   error: { code: string; details?: unknown } | null;
 };
 
+type ResumableGameApi = {
+  code: string;
+  name: string;
+  playerCount: number;
+  maxPlayers: number;
+  currentTurn: number;
+  lastActivityAt: string;
+  campaign: { id: string; title: string; theme: string; difficulty: string } | null;
+};
+
+type ResumableGamesApiResponse = {
+  success: boolean;
+  data: ResumableGameApi[] | null;
+  message: string;
+  error: { code: string; details?: unknown } | null;
+};
+
 const THEME = {
   bg: 'bg-[#0f0f12]',
   surface: 'bg-[#16161a]',
@@ -84,6 +105,10 @@ export function UserProfilePage() {
   const [characters, setCharacters] = useState<CharacterApi[]>([]);
   const [charactersLoading, setCharactersLoading] = useState(true);
   const [charactersError, setCharactersError] = useState<string | null>(null);
+
+  const [resumableGames, setResumableGames] = useState<ResumableGameApi[]>([]);
+  const [gamesLoading, setGamesLoading] = useState(true);
+  const [gamesError, setGamesError] = useState<string | null>(null);
 
   const [username, setUsername] = useState('');
 
@@ -153,10 +178,32 @@ export function UserProfilePage() {
     }
   }, []);
 
+  const fetchResumableGames = useCallback(async () => {
+    setGamesLoading(true);
+    setGamesError(null);
+
+    try {
+      const res = await fetch('/api/rooms/resumable');
+      const json = (await res.json()) as ResumableGamesApiResponse;
+
+      if (!res.ok || !json.success || !json.data) {
+        setGamesError(json.message || 'Impossible de charger les parties en cours');
+        return;
+      }
+
+      setResumableGames(json.data);
+    } catch {
+      setGamesError('Erreur réseau lors du chargement des parties');
+    } finally {
+      setGamesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void fetchProfile();
     void fetchCharacters();
-  }, [fetchProfile, fetchCharacters]);
+    void fetchResumableGames();
+  }, [fetchProfile, fetchCharacters, fetchResumableGames]);
 
   const saveProfile = async () => {
     setSavingProfile(true);
@@ -282,30 +329,58 @@ export function UserProfilePage() {
         <div className="grid md:grid-cols-2 gap-8">
           <Card className={`p-8 space-y-6 ${THEME.surface} ${THEME.borderLight}`}>
             <h3 className="text-xl font-bold text-white uppercase italic border-b border-white/5 pb-4 tracking-tight">
-              Historique des Sessions
+              Reprendre une partie
             </h3>
             <div className="space-y-4">
-              {(user?.profile.totalGames ?? 0) === 0 ? (
+              {gamesLoading ? (
+                <div className="flex items-center gap-2 text-gray-400 p-4">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Chargement...
+                </div>
+              ) : gamesError ? (
                 <div className="p-4 bg-white/5 rounded-xl border border-white/5">
-                  <p className="text-sm text-gray-300">Aucune session pour le moment.</p>
+                  <p className="text-sm text-red-300">{gamesError}</p>
+                </div>
+              ) : resumableGames.length === 0 ? (
+                <div className="p-4 bg-white/5 rounded-xl border border-white/5">
+                  <p className="text-sm text-gray-300">Aucune partie en cours à reprendre.</p>
                 </div>
               ) : (
-                Array.from({ length: Math.min(user?.profile.totalGames ?? 0, 3) }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="flex justify-between items-center p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/[0.07] transition-all"
-                  >
-                    <div>
-                      <p className="font-black text-sm text-white uppercase italic tracking-tight">
-                        Session #{i + 1}
-                      </p>
-                      <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">
-                        Historique de partie
-                      </p>
-                    </div>
-                    <ChevronRight size={18} className="text-red-900" />
-                  </div>
-                ))
+                resumableGames.map((game) => {
+                  const theme = game.campaign
+                    ? THEME_CONFIG[game.campaign.theme as CampaignThemeKey]
+                    : null;
+                  return (
+                    <Link
+                      key={game.code}
+                      href={`/game/${game.code}`}
+                      className="flex justify-between items-center p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/[0.07] transition-all group"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-black text-sm text-white uppercase italic tracking-tight truncate">
+                          {game.campaign?.title ?? game.name}
+                        </p>
+                        <div className="flex items-center gap-3 mt-1">
+                          {theme && (
+                            <span className={`text-[10px] uppercase tracking-widest font-bold ${theme.color}`}>
+                              {theme.label}
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1 text-[10px] text-gray-500 uppercase tracking-widest font-bold">
+                            <Users size={11} />
+                            {game.playerCount}/{game.maxPlayers}
+                          </span>
+                          <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">
+                            Tour {game.currentTurn}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 text-red-500 group-hover:text-red-400 shrink-0">
+                        <Play size={14} className="fill-current" />
+                        <ChevronRight size={18} className="text-red-900 group-hover:text-red-700" />
+                      </div>
+                    </Link>
+                  );
+                })
               )}
             </div>
           </Card>

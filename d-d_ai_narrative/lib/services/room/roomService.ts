@@ -21,6 +21,17 @@ export interface RoomPublic {
   campaign?: { id: string; title: string; theme: string; difficulty: string } | null;
 }
 
+/** DTO d'une partie en cours reprenable par un joueur */
+export interface ResumableGame {
+  code: string;
+  name: string;
+  playerCount: number;
+  maxPlayers: number;
+  currentTurn: number;
+  lastActivityAt: Date;
+  campaign: { id: string; title: string; theme: string; difficulty: string } | null;
+}
+
 /**
  * Génère un code unique de 6 caractères alphanumériques majuscules.
  * Réessaie jusqu'à 5 fois en cas de collision (probabilité quasi-nulle).
@@ -390,6 +401,37 @@ export async function selectCharacter(
   });
 
   await broadcastPlayerUpdate(code, 'player_updated');
+}
+
+/**
+ * Liste les parties en cours qu'un joueur peut reprendre.
+ * Une partie est reprenable si le salon est IN_PROGRESS, possède un GameState
+ * et que le joueur en est membre. Triées par activité la plus récente.
+ */
+export async function getResumableGames(userId: string): Promise<ResumableGame[]> {
+  const rooms = await prisma.room.findMany({
+    where: {
+      status: RoomStatus.IN_PROGRESS,
+      players: { some: { userId } },
+      gameState: { isNot: null },
+    },
+    include: {
+      campaign: { select: { id: true, title: true, theme: true, difficulty: true } },
+      gameState: { select: { currentTurn: true, lastActivityAt: true } },
+      _count: { select: { players: true } },
+    },
+    orderBy: { gameState: { lastActivityAt: 'desc' } },
+  });
+
+  return rooms.map((room) => ({
+    code: room.code,
+    name: room.name,
+    playerCount: room._count.players,
+    maxPlayers: room.maxPlayers,
+    currentTurn: room.gameState?.currentTurn ?? 1,
+    lastActivityAt: room.gameState?.lastActivityAt ?? room.updatedAt,
+    campaign: room.campaign ?? null,
+  }));
 }
 
 function toRoomPublic(room: {

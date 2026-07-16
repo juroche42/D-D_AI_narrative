@@ -13,6 +13,7 @@ vi.mock('@/lib/prisma', () => ({
     },
     room: {
       findUnique: vi.fn(),
+      findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn(),
@@ -42,7 +43,7 @@ vi.mock('@/lib/sse/sseManager', () => ({
   broadcastToRoom: vi.fn(),
 }));
 
-import { createRoom, getRoomByCode, getRoomPreview, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady, selectCampaign, selectCharacter } from './roomService';
+import { createRoom, getRoomByCode, getRoomPreview, getResumableGames, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady, selectCampaign, selectCharacter } from './roomService';
 import { prisma } from '@/lib/prisma';
 import { broadcastToRoom } from '@/lib/sse/sseManager';
 import { broadcastPlayerUpdate } from '@/lib/sse/sseService';
@@ -652,5 +653,57 @@ describe('selectCharacter', () => {
       .rejects.toMatchObject({ statusCode: 403 });
     expect(prisma.roomPlayer.update).not.toHaveBeenCalled();
     expect(broadcastPlayerUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('getResumableGames', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const RESUMABLE_ROOM = {
+    ...MOCK_ROOM,
+    status: RoomStatus.IN_PROGRESS,
+    campaign: { id: 'camp_1', title: 'La Crypte Oubliée', theme: 'HORROR', difficulty: 'HARD' },
+    gameState: { currentTurn: 4, lastActivityAt: new Date('2026-07-15') },
+    _count: { players: 3 },
+  };
+
+  it('ne requête que les parties IN_PROGRESS avec GameState dont le joueur est membre', async () => {
+    vi.mocked(prisma.room.findMany).mockResolvedValue([] as never);
+
+    await getResumableGames('user_1');
+
+    expect(prisma.room.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: RoomStatus.IN_PROGRESS,
+          players: { some: { userId: 'user_1' } },
+          gameState: { isNot: null },
+        },
+        orderBy: { gameState: { lastActivityAt: 'desc' } },
+      }),
+    );
+  });
+
+  it('mappe le scénario, le nombre de joueurs et le tour courant', async () => {
+    vi.mocked(prisma.room.findMany).mockResolvedValue([RESUMABLE_ROOM] as never);
+
+    const games = await getResumableGames('user_1');
+
+    expect(games).toHaveLength(1);
+    expect(games[0]).toMatchObject({
+      code: 'ABC123',
+      playerCount: 3,
+      maxPlayers: 6,
+      currentTurn: 4,
+      campaign: { title: 'La Crypte Oubliée', theme: 'HORROR' },
+    });
+  });
+
+  it('retourne un tableau vide si aucune partie reprenable', async () => {
+    vi.mocked(prisma.room.findMany).mockResolvedValue([] as never);
+
+    const games = await getResumableGames('user_1');
+
+    expect(games).toEqual([]);
   });
 });
