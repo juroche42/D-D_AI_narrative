@@ -87,6 +87,7 @@ export function CharacterSelectModal({
           </div>
           <button
             onClick={onClose}
+            aria-label="Fermer"
             className="p-2 rounded-xl text-gray-600 hover:text-white hover:bg-white/5 transition-colors"
           >
             <X size={18} />

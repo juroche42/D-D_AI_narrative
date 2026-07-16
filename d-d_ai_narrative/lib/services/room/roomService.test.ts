@@ -20,6 +20,9 @@ vi.mock('@/lib/prisma', () => ({
     campaign: {
       findUnique: vi.fn(),
     },
+    character: {
+      findUnique: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -38,9 +41,10 @@ vi.mock('@/lib/sse/sseManager', () => ({
   broadcastToRoom: vi.fn(),
 }));
 
-import { createRoom, getRoomByCode, getRoomPreview, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady, selectCampaign } from './roomService';
+import { createRoom, getRoomByCode, getRoomPreview, joinRoom, leaveRoom, updateRoomStatus, togglePlayerReady, selectCampaign, selectCharacter } from './roomService';
 import { prisma } from '@/lib/prisma';
 import { broadcastToRoom } from '@/lib/sse/sseManager';
+import { broadcastPlayerUpdate } from '@/lib/sse/sseService';
 
 const MOCK_ROOM = {
   id: 'room_cuid_1',
@@ -528,5 +532,109 @@ describe('selectCampaign', () => {
 
     await expect(selectCampaign('ABC123', 'user_cuid_1', 'unknown_campaign'))
       .rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe('selectCharacter', () => {
+  const MOCK_MEMBERSHIP = { id: 'rp_2', userId: 'user_2', characterId: null };
+
+  const roomWithMembership = (overrides = {}) => ({
+    ...MOCK_ROOM,
+    players: [MOCK_MEMBERSHIP],
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NEXTAUTH_URL = 'http://localhost:3000';
+  });
+
+  it('associe un personnage du joueur, met à jour room_players et broadcast player_updated', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue(roomWithMembership() as never);
+    vi.mocked(prisma.character.findUnique).mockResolvedValue({ userId: 'user_2' } as never);
+    vi.mocked(prisma.roomPlayer.update).mockResolvedValue({} as never);
+
+    await selectCharacter('abc123', 'user_2', 'char_1');
+
+    expect(prisma.character.findUnique).toHaveBeenCalledWith({
+      where: { id: 'char_1' },
+      select: { userId: true },
+    });
+    expect(prisma.roomPlayer.update).toHaveBeenCalledWith({
+      where: { id: 'rp_2' },
+      data: { characterId: 'char_1' },
+    });
+    expect(broadcastPlayerUpdate).toHaveBeenCalledWith('ABC123', 'player_updated');
+  });
+
+  it('normalise le code du salon en majuscules', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue(roomWithMembership() as never);
+    vi.mocked(prisma.character.findUnique).mockResolvedValue({ userId: 'user_2' } as never);
+    vi.mocked(prisma.roomPlayer.update).mockResolvedValue({} as never);
+
+    await selectCharacter('abc123', 'user_2', 'char_1');
+
+    expect(prisma.room.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { code: 'ABC123' } }),
+    );
+  });
+
+  it('désélectionne (characterId = null) sans vérifier de personnage', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue(roomWithMembership() as never);
+    vi.mocked(prisma.roomPlayer.update).mockResolvedValue({} as never);
+
+    await selectCharacter('ABC123', 'user_2', null);
+
+    expect(prisma.character.findUnique).not.toHaveBeenCalled();
+    expect(prisma.roomPlayer.update).toHaveBeenCalledWith({
+      where: { id: 'rp_2' },
+      data: { characterId: null },
+    });
+    expect(broadcastPlayerUpdate).toHaveBeenCalledWith('ABC123', 'player_updated');
+  });
+
+  it('lève 404 si le salon est inconnu', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue(null);
+
+    await expect(selectCharacter('XXXXXX', 'user_2', 'char_1'))
+      .rejects.toMatchObject({ statusCode: 404 });
+    expect(prisma.roomPlayer.update).not.toHaveBeenCalled();
+  });
+
+  it("lève 404 si le joueur n'est pas membre du salon", async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue(roomWithMembership({ players: [] }) as never);
+
+    await expect(selectCharacter('ABC123', 'stranger', 'char_1'))
+      .rejects.toMatchObject({ statusCode: 404 });
+    expect(prisma.roomPlayer.update).not.toHaveBeenCalled();
+  });
+
+  it("lève 409 si le salon n'est plus en WAITING", async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue(
+      roomWithMembership({ status: RoomStatus.IN_PROGRESS }) as never,
+    );
+
+    await expect(selectCharacter('ABC123', 'user_2', 'char_1'))
+      .rejects.toMatchObject({ statusCode: 409 });
+    expect(prisma.roomPlayer.update).not.toHaveBeenCalled();
+  });
+
+  it('lève 404 si le personnage est introuvable', async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue(roomWithMembership() as never);
+    vi.mocked(prisma.character.findUnique).mockResolvedValue(null);
+
+    await expect(selectCharacter('ABC123', 'user_2', 'unknown_char'))
+      .rejects.toMatchObject({ statusCode: 404 });
+    expect(prisma.roomPlayer.update).not.toHaveBeenCalled();
+  });
+
+  it("lève 403 si le personnage n'appartient pas au joueur", async () => {
+    vi.mocked(prisma.room.findUnique).mockResolvedValue(roomWithMembership() as never);
+    vi.mocked(prisma.character.findUnique).mockResolvedValue({ userId: 'someone_else' } as never);
+
+    await expect(selectCharacter('ABC123', 'user_2', 'char_1'))
+      .rejects.toMatchObject({ statusCode: 403 });
+    expect(prisma.roomPlayer.update).not.toHaveBeenCalled();
+    expect(broadcastPlayerUpdate).not.toHaveBeenCalled();
   });
 });
