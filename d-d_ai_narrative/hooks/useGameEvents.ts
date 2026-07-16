@@ -10,9 +10,11 @@ export interface GameEventsState {
   votes:         VoteCount[];
   myVote:        string | null;
   currentTurn:   number;
-  ready:         boolean;   // true dès qu'on a reçu actions_ready
-  isResolved:    boolean;   // true dès que turn_resolved reçu
-  winningAction: { id: string; content: string } | null;
+  ready:         boolean;         // true dès qu'on a reçu actions_ready
+  isResolved:    boolean;         // true dès qu'on a reçu turn_resolved
+  winningAction: { id: string; content: string } | null;  // action gagnante du tour
+  onlineUserIds: string[];        // joueurs actuellement connectés au flux de jeu
+  presenceReady: boolean;         // true dès qu'on a reçu un event presence
   error:         string | null;
 }
 
@@ -30,6 +32,8 @@ const INITIAL_STATE: GameEventsState = {
   ready:         false,
   isResolved:    false,
   winningAction: null,
+  onlineUserIds: [],
+  presenceReady: false,
   error:         null,
 };
 
@@ -61,6 +65,7 @@ export function useGameEvents(roomCode: string): UseGameEventsResult {
           actions?:       GameActionItem[];
           votes?:         VoteCount[];
           myVote?:        string | null;
+          onlineUserIds?: string[];
           winningAction?: { id: string; content: string };
         };
 
@@ -84,6 +89,13 @@ export function useGameEvents(roomCode: string): UseGameEventsResult {
             myVote: event.myVote !== undefined ? (event.myVote ?? null) : s.myVote,
           }));
         } else if (event.type === 'turn_resolved') {
+          setState((s) => ({
+            ...s,
+            votes:         event.votes ?? s.votes,
+            isResolved:    true,
+            winningAction: event.winningAction ?? s.winningAction,
+          }));
+        } else if (event.type === 'presence') {
           setState((s) => ({
             ...s,
             winningAction: event.winningAction ?? null,

@@ -50,11 +50,28 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
   const [narrativeHistory, setHistory]  = useState<string[]>(lastNarration ? [lastNarration] : []);
   const [selectedActionId, setSelected] = useState<string | null>(null);
   const [freeAction, setFreeAction]     = useState('');
+  const [, startTransition]             = useTransition();
 
   const intro      = useNarrativeStream(roomCode, 'intro');
   const scene      = useNarrativeStream(roomCode, 'scene');
   const gameEvents = useGameEvents(roomCode);
-  const timer      = useGameTimer({ roomCode, durationMs: 90_000, active: phase === 'voting' });
+
+  // ── Présence des joueurs ────────────────────────────────────────────────────
+  // Le joueur courant est toujours en ligne (il regarde l'écran).
+  const onlineSet = new Set(gameEvents.onlineUserIds);
+  onlineSet.add(currentPlayer.userId);
+  // Tant que la présence n'est pas connue, on considère tout le monde en ligne (évite un flash "hors ligne").
+  const isOnline = (userId: string) => !gameEvents.presenceReady || onlineSet.has(userId);
+
+  // On n'applique le blocage qu'une fois la présence connue (évite un faux "hors ligne" au montage).
+  const offlinePlayers = gameEvents.presenceReady
+    ? otherPlayers.filter((p) => !onlineSet.has(p.userId))
+    : [];
+  const allPlayersOnline = offlinePlayers.length === 0;
+
+  // Timer suspendu tant qu'un joueur est absent : pas de résolution automatique
+  // pendant qu'on attend le retour des joueurs manquants.
+  const timer      = useGameTimer({ roomCode, durationMs: 90_000, active: phase === 'voting' && allPlayersOnline });
 
   // ── Présence des joueurs ────────────────────────────────────────────────────
   // Le joueur courant est toujours en ligne (il regarde l'écran).
@@ -355,6 +372,8 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
                     {selectedActionId ? 'Voter' : 'Jouer'}
                   </button>
                 </div>
+              )}
+                </>
               )}
                 </>
               )}
