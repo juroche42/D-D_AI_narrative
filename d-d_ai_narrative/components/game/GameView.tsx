@@ -4,6 +4,8 @@ import { useState, useEffect, useTransition } from 'react';
 import { Loader2, Swords, ChevronRight, Clock, User, AlertTriangle, RotateCcw, Radio, Wifi, WifiOff } from 'lucide-react';
 import { useNarrativeStream } from '@/hooks/useNarrativeStream';
 import { useGameEvents } from '@/hooks/useGameEvents';
+import { useGameTimer } from '@/hooks/useGameTimer';
+import { VoteTimer } from '@/components/game/VoteTimer';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,6 +56,23 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
   const scene      = useNarrativeStream(roomCode, 'scene');
   const gameEvents = useGameEvents(roomCode);
 
+  // ── Présence des joueurs ────────────────────────────────────────────────────
+  // Le joueur courant est toujours en ligne (il regarde l'écran).
+  const onlineSet = new Set(gameEvents.onlineUserIds);
+  onlineSet.add(currentPlayer.userId);
+  // Tant que la présence n'est pas connue, on considère tout le monde en ligne (évite un flash "hors ligne").
+  const isOnline = (userId: string) => !gameEvents.presenceReady || onlineSet.has(userId);
+
+  // On n'applique le blocage qu'une fois la présence connue (évite un faux "hors ligne" au montage).
+  const offlinePlayers = gameEvents.presenceReady
+    ? otherPlayers.filter((p) => !onlineSet.has(p.userId))
+    : [];
+  const allPlayersOnline = offlinePlayers.length === 0;
+
+  // Timer suspendu tant qu'un joueur est absent : pas de résolution automatique
+  // pendant qu'on attend le retour des joueurs manquants.
+  const timer      = useGameTimer({ roomCode, durationMs: 90_000, active: phase === 'voting' && allPlayersOnline });
+
   // ── Flow automatique ─────────────────────────────────────────────────────────
 
   // 1. Démarrer l'intro au montage (ou passer directement en actions si tour > 1)
@@ -87,7 +106,17 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
     }
   }, [gameEvents.ready, phase]);
 
-  // 4. Scène terminée → recharger les actions pour le tour suivant
+  // 4. Tour résolu via SSE → lancer la scène
+  useEffect(() => {
+    if (gameEvents.isResolved && gameEvents.winningAction && phase === 'voting') {
+      setPhase('scene_loading');
+      scene.reset();
+      scene.startStream(`/api/game/${roomCode}/stream?type=scene&actionId=${gameEvents.winningAction.id}`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameEvents.isResolved]);
+
+  // 5. Scène terminée → recharger les actions pour le tour suivant
   useEffect(() => {
     if (scene.status === 'done' && phase === 'scene_loading') {
       if (scene.text) setHistory((h) => [...h, scene.text]);
@@ -95,6 +124,7 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
       setSelected(null);
       setFreeAction('');
       scene.reset();
+      gameEvents.reconnect();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene.status]);
@@ -134,19 +164,9 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
   const currentError   = intro.error ?? scene.error ?? gameEvents.error;
   const turnDisplay    = gameEvents.currentTurn > 1 ? gameEvents.currentTurn : 1;
   const myVotedId      = gameEvents.myVote;
+  const isResolved     = gameEvents.isResolved;
+  const winningId      = gameEvents.winningAction?.id;
 
-  // ── Présence des joueurs ────────────────────────────────────────────────────
-  // Le joueur courant est toujours en ligne (il regarde l'écran).
-  const onlineSet = new Set(gameEvents.onlineUserIds);
-  onlineSet.add(currentPlayer.userId);
-  // Tant que la présence n'est pas connue, on considère tout le monde en ligne (évite un flash "hors ligne").
-  const isOnline = (userId: string) => !gameEvents.presenceReady || onlineSet.has(userId);
-
-  // On n'applique le blocage qu'une fois la présence connue (évite un faux "hors ligne" au montage).
-  const offlinePlayers = gameEvents.presenceReady
-    ? otherPlayers.filter((p) => !onlineSet.has(p.userId))
-    : [];
-  const allPlayersOnline = offlinePlayers.length === 0;
   const canPlay = phase === 'voting' && allPlayersOnline;
 
   // ── Rendu ─────────────────────────────────────────────────────────────────────
@@ -219,8 +239,9 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
           {/* Zone d'actions — visible en phase voting */}
           {phase === 'voting' && (
             <div className="bg-black/20 border border-white/5 rounded-3xl p-6 flex flex-col gap-4">
-              {/* Blocage — un ou plusieurs joueurs sont hors ligne */}
-              {!allPlayersOnline && (
+              {/* Blocage — un ou plusieurs joueurs sont hors ligne :
+                  timer suspendu + choix de vote masqués tant qu'on les attend. */}
+              {!allPlayersOnline ? (
                 <div className="flex items-start gap-3 rounded-xl border border-amber-900/40 bg-amber-950/20 px-4 py-3">
                   <WifiOff size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
                   <div>
@@ -233,38 +254,51 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
                     </p>
                   </div>
                 </div>
-              )}
-
-              <div className={`flex items-center justify-between ${!allPlayersOnline ? 'opacity-40 pointer-events-none' : ''}`}>
+              ) : (
+                <>
+              <div className="flex items-center justify-between">
                 <p className="text-xs font-black uppercase tracking-widest text-white">
-                  Quelle est votre réponse ?
+                  {isResolved ? 'Action choisie' : 'Quelle est votre réponse ?'}
                 </p>
                 <div className="flex items-center gap-2">
-                  {/* Badge En direct */}
-                  <div className="flex items-center gap-1 text-green-500 border border-green-900/40 bg-green-950/20 px-2 py-0.5 rounded">
-                    <Radio size={9} className="animate-pulse" />
-                    <span className="text-[9px] font-black uppercase tracking-widest">En direct</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-gray-500">
-                    <Clock size={12} />
-                    <span className="text-[10px] font-black uppercase tracking-widest font-mono">1:30</span>
-                  </div>
+                  {!isResolved && (
+                    <div className="flex items-center gap-1 text-green-500 border border-green-900/40 bg-green-950/20 px-2 py-0.5 rounded">
+                      <Radio size={9} className="animate-pulse" />
+                      <span className="text-[9px] font-black uppercase tracking-widest">En direct</span>
+                    </div>
+                  )}
+                  <VoteTimer
+                    secondsLeft={timer.secondsLeft}
+                    progress={timer.progress}
+                    isExpired={timer.isExpired || isResolved}
+                  />
                 </div>
               </div>
 
               {/* Actions suggérées */}
-              <div className={`flex flex-col gap-2 ${!allPlayersOnline ? 'opacity-40 pointer-events-none' : ''}`}>
+              <div className="flex flex-col gap-2">
                 {gameEvents.actions.map((action) => {
-                  const voteCount = gameEvents.votes.find((v) => v.actionId === action.id)?.count ?? 0;
+                  const voteCount  = gameEvents.votes.find((v) => v.actionId === action.id)?.count ?? 0;
                   const isSelected = selectedActionId === action.id;
                   const isMyVote   = myVotedId === action.id;
+                  const isWinner   = isResolved && winningId === action.id;
+                  const isLoser    = isResolved && winningId !== action.id;
 
                   return (
                     <button
                       key={action.id}
-                      onClick={() => { setSelected(action.id); setFreeAction(''); }}
+                      onClick={() => {
+                        if (isResolved) return;
+                        setSelected(action.id);
+                        setFreeAction('');
+                      }}
+                      disabled={isResolved}
                       className={`group flex items-center justify-between p-4 rounded-xl border text-left transition-all ${
-                        isSelected
+                        isWinner
+                          ? 'border-green-700 bg-green-950/20'
+                          : isLoser
+                          ? 'border-white/5 bg-black/10 opacity-40'
+                          : isSelected
                           ? 'border-red-700 bg-red-950/20'
                           : 'border-white/5 bg-black/20 hover:border-white/15'
                       }`}
@@ -273,10 +307,16 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
                         <ChevronRight
                           size={14}
                           className={`flex-shrink-0 transition-colors ${
-                            isSelected ? 'text-red-500' : 'text-gray-700 group-hover:text-gray-500'
+                            isWinner  ? 'text-green-500'
+                            : isSelected ? 'text-red-500'
+                            : 'text-gray-700 group-hover:text-gray-500'
                           }`}
                         />
-                        <p className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-gray-300'}`}>
+                        <p className={`text-sm font-bold ${
+                          isWinner   ? 'text-green-300'
+                          : isSelected ? 'text-white'
+                          : 'text-gray-300'
+                        }`}>
                           {action.content}
                         </p>
                       </div>
@@ -284,6 +324,11 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
                         {isMyVote && (
                           <span className="text-[8px] font-black uppercase tracking-widest text-red-500 border border-red-900/40 bg-red-950/20 px-1.5 py-0.5 rounded">
                             Mon vote
+                          </span>
+                        )}
+                        {isWinner && (
+                          <span className="text-[8px] font-black uppercase tracking-widest text-green-500 border border-green-900/40 bg-green-950/20 px-1.5 py-0.5 rounded">
+                            Gagnant
                           </span>
                         )}
                         <span className={`text-[9px] font-black uppercase tracking-widest ${voteCount > 0 ? 'text-gray-400' : 'text-gray-700'}`}>
@@ -327,6 +372,8 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
                 >
                   Lancer l&apos;action
                 </button>
+              )}
+                </>
               )}
             </div>
           )}

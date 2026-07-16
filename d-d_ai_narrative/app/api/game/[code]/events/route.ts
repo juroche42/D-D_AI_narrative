@@ -15,7 +15,7 @@ const KEEPALIVE_MS = 25_000;
  * SSE persistant — diffuse en temps réel :
  * - `actions_ready` : snapshot initial (actions + compteurs de votes + myVote)
  * - `vote_cast`     : mise à jour des compteurs après chaque vote
- * - `turn_resolving`: signal que le DM commence à générer la scène suivante
+ * - `turn_resolved` : action gagnante du tour → déclenche la scène côté client
  */
 export async function GET(
   req: NextRequest,

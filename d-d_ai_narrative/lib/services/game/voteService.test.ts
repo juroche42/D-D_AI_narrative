@@ -3,13 +3,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 // ── Prisma mock ──────────────────────────────────────────────────────────────
-const mockTurnActionFindMany   = vi.hoisted(() => vi.fn());
-const mockTurnActionFindFirst  = vi.hoisted(() => vi.fn());
+const mockTurnActionFindMany      = vi.hoisted(() => vi.fn());
+const mockTurnActionFindFirst     = vi.hoisted(() => vi.fn());
 const mockNarrativeEntryFindFirst = vi.hoisted(() => vi.fn());
-const mockVoteUpsert           = vi.hoisted(() => vi.fn());
-const mockVoteGroupBy          = vi.hoisted(() => vi.fn());
-const mockVoteFindMany         = vi.hoisted(() => vi.fn());
-const mockVoteFindUnique       = vi.hoisted(() => vi.fn());
+const mockVoteUpsert              = vi.hoisted(() => vi.fn());
+const mockVoteGroupBy             = vi.hoisted(() => vi.fn());
+const mockVoteFindMany            = vi.hoisted(() => vi.fn());
+const mockVoteFindUnique          = vi.hoisted(() => vi.fn());
+const mockGameStateFindFirst      = vi.hoisted(() => vi.fn());
+const mockRoomPlayerCount         = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -25,6 +27,12 @@ vi.mock('@/lib/prisma', () => ({
       groupBy:    mockVoteGroupBy,
       findMany:   mockVoteFindMany,
       findUnique: mockVoteFindUnique,
+    },
+    gameState: {
+      findFirst: mockGameStateFindFirst,
+    },
+    roomPlayer: {
+      count: mockRoomPlayerCount,
     },
   },
 }));
@@ -49,6 +57,7 @@ import {
   getOrCreateTurnActions,
   castVote,
   getVoteState,
+  resolveVote,
 } from './voteService';
 import type { GameContext } from '@/lib/services/ai/narrativeService';
 
@@ -130,7 +139,11 @@ describe('getOrCreateTurnActions', () => {
 // ── Tests : castVote ─────────────────────────────────────────────────────────
 
 describe('castVote', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Par défaut, 2 joueurs dans la room (pas de résolution automatique dans ces tests)
+    mockRoomPlayerCount.mockResolvedValue(99);
+  });
 
   it('upsert le vote et broadcast vote_cast', async () => {
     mockTurnActionFindFirst.mockResolvedValue({ id: 'a1', content: 'Action 1' });
@@ -219,5 +232,85 @@ describe('getVoteState', () => {
 
     expect(result.votes).toHaveLength(0);
     expect(result.myVote).toBeNull();
+  });
+});
+
+// ── Tests : resolveVote ───────────────────────────────────────────────────────
+
+describe('resolveVote', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Reset le dedup global entre les tests
+    if (globalThis.__resolvePromises) globalThis.__resolvePromises.clear();
+
+    mockGameStateFindFirst.mockResolvedValue({ id: 'gs-1', currentTurn: 2 });
+    mockNarrativeEntryFindFirst.mockResolvedValue(null); // pas encore résolu
+  });
+
+  it('retourne l\'action avec le plus de votes', async () => {
+    mockVoteGroupBy.mockResolvedValue([
+      { actionId: 'a1', _count: { actionId: 1 } },
+      { actionId: 'a2', _count: { actionId: 3 } },
+    ]);
+    mockTurnActionFindMany.mockResolvedValue([
+      { id: 'a1', content: 'Action 1' },
+      { id: 'a2', content: 'Action 2' },
+    ]);
+
+    const result = await resolveVote('ABC123');
+
+    expect(result.winningAction.id).toBe('a2');
+    expect(result.turn).toBe(2);
+    expect(mockBroadcastToGame).toHaveBeenCalledWith(
+      'ABC123',
+      expect.objectContaining({ type: 'turn_resolved', winningAction: { id: 'a2', content: 'Action 2' } }),
+    );
+  });
+
+  it('est idempotent — ne re-broadcast pas si déjà résolu (NarrativeEntry ACTION présente)', async () => {
+    mockNarrativeEntryFindFirst.mockResolvedValue({
+      id: 'ne-2', content: 'Action 2', createdAt: new Date(),
+    });
+    mockVoteGroupBy.mockResolvedValue([{ actionId: 'a2', _count: { actionId: 2 } }]);
+    mockTurnActionFindMany.mockResolvedValue([
+      { id: 'a1', content: 'Action 1' },
+      { id: 'a2', content: 'Action 2' },
+    ]);
+
+    const result = await resolveVote('ABC123');
+
+    expect(result.winningAction.id).toBe('a2');
+    // Pas de broadcast car le tour était déjà résolu
+    expect(mockBroadcastToGame).not.toHaveBeenCalled();
+  });
+
+  it('sélectionne aléatoirement en cas d\'égalité', async () => {
+    mockVoteGroupBy.mockResolvedValue([
+      { actionId: 'a1', _count: { actionId: 2 } },
+      { actionId: 'a2', _count: { actionId: 2 } },
+    ]);
+    mockTurnActionFindMany.mockResolvedValue([
+      { id: 'a1', content: 'Action 1' },
+      { id: 'a2', content: 'Action 2' },
+    ]);
+
+    const result = await resolveVote('ABC123');
+
+    expect(['a1', 'a2']).toContain(result.winningAction.id);
+    expect(mockBroadcastToGame).toHaveBeenCalledTimes(1);
+  });
+
+  it('sélectionne aléatoirement si aucun vote', async () => {
+    mockVoteGroupBy.mockResolvedValue([]);
+    mockTurnActionFindMany.mockResolvedValue([
+      { id: 'a1', content: 'Action 1' },
+      { id: 'a2', content: 'Action 2' },
+      { id: 'a3', content: 'Action 3' },
+    ]);
+
+    const result = await resolveVote('ABC123');
+
+    expect(['a1', 'a2', 'a3']).toContain(result.winningAction.id);
+    expect(mockBroadcastToGame).toHaveBeenCalledTimes(1);
   });
 });

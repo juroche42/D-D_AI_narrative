@@ -6,7 +6,10 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { castVote } from '@/lib/services/game/voteService';
 
-const VoteSchema = z.object({ actionId: z.string().min(1) });
+const VoteSchema = z.union([
+  z.object({ actionId:   z.string().min(1) }),
+  z.object({ freeAction: z.string().min(1).max(200) }),
+]);
 
 export async function POST(
   req: NextRequest,
@@ -23,7 +26,7 @@ export async function POST(
   const body   = await req.json().catch(() => null);
   const parsed = VoteSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: 'actionId requis' }, { status: 422 });
+    return NextResponse.json({ error: 'actionId ou freeAction requis' }, { status: 422 });
   }
 
   const room = await prisma.room.findUnique({
@@ -52,14 +55,34 @@ export async function POST(
   }
 
   try {
-    await castVote(
-      room.gameState.id,
-      room.id,
-      roomCode,
-      session.user.id,
-      parsed.data.actionId,
-      room.gameState.currentTurn,
-    );
+    if ('freeAction' in parsed.data) {
+      const newAction = await prisma.turnAction.create({
+        data: {
+          gameStateId: room.gameState.id,
+          turn:        room.gameState.currentTurn,
+          type:        'FREE',
+          content:     parsed.data.freeAction,
+          authorId:    session.user.id,
+        },
+      });
+      await castVote(
+        room.gameState.id,
+        room.id,
+        roomCode,
+        session.user.id,
+        newAction.id,
+        room.gameState.currentTurn,
+      );
+    } else {
+      await castVote(
+        room.gameState.id,
+        room.id,
+        roomCode,
+        session.user.id,
+        parsed.data.actionId,
+        room.gameState.currentTurn,
+      );
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     const e = err as Error & { statusCode?: number };

@@ -12,6 +12,7 @@ import {
   acquireLock, releaseLock,
   pushToken, markGenerationDone, getTokensFrom, isBuffered,
 } from '@/lib/sse/generationLock';
+import { NarrativeEntryType } from '@/app/generated/prisma/enums';
 
 const CACHE_CHUNK  = 10;      // chars par chunk pour le replay depuis DB
 const CACHE_DELAY  = 10;      // ms entre chunks du replay (effet typewriter)
@@ -183,11 +184,60 @@ export async function GET(
 
           send({ type: 'start', turn: ctx.currentTurn, action: chosenAction });
 
-          await generateSceneNarrative(ctx, chosenAction, chosenActionId, (token) => {
-            send({ type: 'token', token });
+          // Cas 1 : scène déjà générée — replay depuis DB (idempotence multi-clients)
+          // On vérifie d'abord qu'une ACTION existe pour ce tour : generateCampaignIntroduction
+          // sauvegarde aussi une NARRATION avec turn=1 qui matchait cette requête à tort,
+          // empêchant generateSceneNarrative d'être appelé et le tour de s'incrémenter.
+          const existingAction = await prisma.narrativeEntry.findFirst({
+            where: { gameStateId: ctx.gameStateId, turn: ctx.currentTurn, type: NarrativeEntryType.ACTION },
           });
+          if (existingAction) {
+            const existingNarration = await prisma.narrativeEntry.findFirst({
+              where:   { gameStateId: ctx.gameStateId, turn: ctx.currentTurn, type: NarrativeEntryType.NARRATION },
+              orderBy: { createdAt: 'desc' },
+            });
+            if (existingNarration) {
+              for (let i = 0; i < existingNarration.content.length; i += CACHE_CHUNK) {
+                send({ type: 'token', token: existingNarration.content.slice(i, i + CACHE_CHUNK) });
+                await new Promise((r) => setTimeout(r, CACHE_DELAY));
+              }
+              send({ type: 'done' });
+              return;
+            }
+          }
+          // (si ACTION existe mais NARRATION pas encore → génération en cours → Cas 2 prend le relais)
 
-          send({ type: 'done' });
+          // Cas 2 : génération en cours — relais depuis le buffer mémoire
+          const sceneKey = `${roomCode}_scene_${ctx.currentTurn}`;
+          if (isBuffered(sceneKey) || !acquireLock(sceneKey)) {
+            const deadline = Date.now() + TIMEOUT_MS;
+            let offset     = 0;
+            while (Date.now() < deadline) {
+              const { tokens, done } = getTokensFrom(sceneKey, offset);
+              for (const token of tokens) { send({ type: 'token', token }); offset++; }
+              if (done && tokens.length === 0) break;
+              await new Promise((r) => setTimeout(r, POLL_MS));
+            }
+            const { done: finallyDone } = getTokensFrom(sceneKey, offset);
+            if (finallyDone) send({ type: 'done' });
+            else send({ type: 'error', error: 'Timeout : la génération a pris trop de temps' });
+            return;
+          }
+
+          // Cas 3 : premier appelant — générer via OpenAI
+          try {
+            await generateSceneNarrative(ctx, chosenAction, chosenActionId, (token) => {
+              pushToken(sceneKey, token);
+              send({ type: 'token', token });
+            });
+            markGenerationDone(sceneKey);
+            send({ type: 'done' });
+          } catch (genErr) {
+            markGenerationDone(sceneKey);
+            throw genErr;
+          } finally {
+            releaseLock(sceneKey);
+          }
           return;
         }
 
