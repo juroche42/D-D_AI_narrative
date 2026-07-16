@@ -388,16 +388,22 @@ ${endingInstructions}`,
     },
   });
 
-  let fullContent = '';
+  let rawContent = '';
+  const stripper = createSentinelStripper(END_SENTINEL, onChunk);
   await completeStream({
     messages,
     maxTokens:   600,
     temperature: 0.85,
     onChunk: (token) => {
-      fullContent += token;
-      onChunk(token);
+      rawContent += token;
+      stripper.push(token);
     },
   });
+  stripper.end();
+
+  // L'IA signale la fin via le marqueur ; le plafond de tours force la fin sinon.
+  const isEnding    = isFinalTurn || rawContent.includes(END_SENTINEL);
+  const fullContent = rawContent.split(END_SENTINEL).join('').trimEnd();
 
   await prisma.narrativeEntry.create({
     data: {
@@ -417,6 +423,22 @@ ${endingInstructions}`,
       lastActivityAt:   new Date(),
     },
   });
+
+  // Fin d'histoire : clôture la partie et notifie tous les joueurs connectés.
+  if (isEnding) {
+    const roomCode = ctx.roomCode.toUpperCase();
+    await prisma.room.update({
+      where: { code: roomCode },
+      data:  { status: RoomStatus.FINISHED },
+    });
+    broadcastToGame(roomCode, {
+      type:      'story_ended',
+      roomCode,
+      turn:      ctx.currentTurn,
+      timestamp: Date.now(),
+      epilogue:  fullContent,
+    });
+  }
 
   return fullContent;
 }

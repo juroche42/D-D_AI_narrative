@@ -4,6 +4,7 @@ vi.mock('server-only', () => ({}));
 
 // ── Prisma mock ─────────────────────────────────────────────────────────────────
 const mockFindUnique          = vi.hoisted(() => vi.fn());
+const mockRoomUpdate          = vi.hoisted(() => vi.fn());
 const mockCreateEntry         = vi.hoisted(() => vi.fn());
 const mockUpdateGameState     = vi.hoisted(() => vi.fn());
 const mockFindManyEntries     = vi.hoisted(() => vi.fn());
@@ -14,6 +15,7 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     room: {
       findUnique: mockFindUnique,
+      update:     mockRoomUpdate,
     },
     narrativeEntry: {
       create:   mockCreateEntry,
@@ -51,6 +53,13 @@ const mockBuildRagContext = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/services/ai/ragService', () => ({
   buildRagContext: mockBuildRagContext,
+}));
+
+// ── SSE mock ────────────────────────────────────────────────────────────────────
+const mockBroadcastToGame = vi.hoisted(() => vi.fn());
+
+vi.mock('@/lib/sse/sseManager', () => ({
+  broadcastToGame: mockBroadcastToGame,
 }));
 
 import {
@@ -361,5 +370,50 @@ describe('generateSceneNarrative', () => {
     await generateSceneNarrative(MOCK_CONTEXT, 'Inspecter la crypte', null, () => {});
 
     expect(mockBuildRagContext).toHaveBeenCalledWith('Inspecter la crypte Village de Fauchombre');
+  });
+
+  it('termine l\'histoire quand la narration contient le marqueur [FIN]', async () => {
+    mockFindManyEntries.mockResolvedValue([]);
+    mockBuildRagContext.mockResolvedValue({ contextText: '', documents: [] });
+    mockCompleteStream.mockImplementation(async (opts: { onChunk: (t: string) => void }) => {
+      opts.onChunk('La quête est accomplie.');
+      opts.onChunk('\n[FIN]');
+    });
+    mockCreateEntry.mockResolvedValue({});
+    mockUpdateGameState.mockResolvedValue({});
+    mockRoomUpdate.mockResolvedValue({});
+
+    const chunks: string[] = [];
+    await generateSceneNarrative(MOCK_CONTEXT, 'Frapper le boss', null, (t) => chunks.push(t));
+
+    // Le marqueur ne fuit pas vers le client…
+    expect(chunks.join('')).toBe('La quête est accomplie.\n');
+    // …ni dans la narration persistée
+    const narrationCall = mockCreateEntry.mock.calls.find((c) => c[0].data.type === 'NARRATION');
+    expect(narrationCall?.[0].data.content).toBe('La quête est accomplie.');
+    // La room passe en FINISHED
+    expect(mockRoomUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: 'FINISHED' } }),
+    );
+    // Un événement story_ended est diffusé aux joueurs
+    expect(mockBroadcastToGame).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ type: 'story_ended', epilogue: 'La quête est accomplie.' }),
+    );
+  });
+
+  it('ne termine pas l\'histoire en cours de partie (pas de [FIN])', async () => {
+    mockFindManyEntries.mockResolvedValue([]);
+    mockBuildRagContext.mockResolvedValue({ contextText: '', documents: [] });
+    mockCompleteStream.mockImplementation(async (opts: { onChunk: (t: string) => void }) => {
+      opts.onChunk('Le combat continue.');
+    });
+    mockCreateEntry.mockResolvedValue({});
+    mockUpdateGameState.mockResolvedValue({});
+
+    await generateSceneNarrative(MOCK_CONTEXT, 'Avancer', null, () => {});
+
+    expect(mockRoomUpdate).not.toHaveBeenCalled();
+    expect(mockBroadcastToGame).not.toHaveBeenCalled();
   });
 });

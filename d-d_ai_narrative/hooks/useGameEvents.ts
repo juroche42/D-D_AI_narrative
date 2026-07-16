@@ -13,6 +13,8 @@ export interface GameEventsState {
   ready:         boolean;         // true dès qu'on a reçu actions_ready
   isResolved:    boolean;         // true dès qu'on a reçu turn_resolved
   winningAction: { id: string; content: string } | null;  // action gagnante du tour
+  storyEnded:    boolean;         // true dès qu'on a reçu story_ended
+  epilogue:      string | null;   // texte de l'épilogue de fin d'histoire
   onlineUserIds: string[];        // joueurs actuellement connectés au flux de jeu
   presenceReady: boolean;         // true dès qu'on a reçu un event presence
   error:         string | null;
@@ -32,6 +34,8 @@ const INITIAL_STATE: GameEventsState = {
   ready:         false,
   isResolved:    false,
   winningAction: null,
+  storyEnded:    false,
+  epilogue:      null,
   onlineUserIds: [],
   presenceReady: false,
   error:         null,
@@ -67,6 +71,7 @@ export function useGameEvents(roomCode: string): UseGameEventsResult {
           myVote?:        string | null;
           onlineUserIds?: string[];
           winningAction?: { id: string; content: string };
+          epilogue?:      string;
         };
 
         if (event.type === 'actions_ready') {
@@ -94,6 +99,12 @@ export function useGameEvents(roomCode: string): UseGameEventsResult {
             votes:         event.votes ?? s.votes,
             isResolved:    true,
             winningAction: event.winningAction ?? s.winningAction,
+          }));
+        } else if (event.type === 'story_ended') {
+          setState((s) => ({
+            ...s,
+            storyEnded: true,
+            epilogue:   event.epilogue ?? s.epilogue,
           }));
         } else if (event.type === 'presence') {
           setState((s) => ({
