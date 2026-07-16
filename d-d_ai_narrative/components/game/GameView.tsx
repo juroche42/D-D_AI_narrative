@@ -50,11 +50,28 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
   const [narrativeHistory, setHistory]  = useState<string[]>(lastNarration ? [lastNarration] : []);
   const [selectedActionId, setSelected] = useState<string | null>(null);
   const [freeAction, setFreeAction]     = useState('');
+  const [, startTransition]             = useTransition();
 
   const intro      = useNarrativeStream(roomCode, 'intro');
   const scene      = useNarrativeStream(roomCode, 'scene');
   const gameEvents = useGameEvents(roomCode);
-  const timer      = useGameTimer({ roomCode, durationMs: 90_000, active: phase === 'voting' });
+
+  // ── Présence des joueurs ────────────────────────────────────────────────────
+  // Le joueur courant est toujours en ligne (il regarde l'écran).
+  const onlineSet = new Set(gameEvents.onlineUserIds);
+  onlineSet.add(currentPlayer.userId);
+  // Tant que la présence n'est pas connue, on considère tout le monde en ligne (évite un flash "hors ligne").
+  const isOnline = (userId: string) => !gameEvents.presenceReady || onlineSet.has(userId);
+
+  // On n'applique le blocage qu'une fois la présence connue (évite un faux "hors ligne" au montage).
+  const offlinePlayers = gameEvents.presenceReady
+    ? otherPlayers.filter((p) => !onlineSet.has(p.userId))
+    : [];
+  const allPlayersOnline = offlinePlayers.length === 0;
+
+  // Timer suspendu tant qu'un joueur est absent : pas de résolution automatique
+  // pendant qu'on attend le retour des joueurs manquants.
+  const timer      = useGameTimer({ roomCode, durationMs: 90_000, active: phase === 'voting' && allPlayersOnline });
 
   // ── Flow automatique ─────────────────────────────────────────────────────────
 
@@ -150,18 +167,6 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
   const isResolved     = gameEvents.isResolved;
   const winningId      = gameEvents.winningAction?.id;
 
-  // ── Présence des joueurs ────────────────────────────────────────────────────
-  // Le joueur courant est toujours en ligne (il regarde l'écran).
-  const onlineSet = new Set(gameEvents.onlineUserIds);
-  onlineSet.add(currentPlayer.userId);
-  // Tant que la présence n'est pas connue, on considère tout le monde en ligne (évite un flash "hors ligne").
-  const isOnline = (userId: string) => !gameEvents.presenceReady || onlineSet.has(userId);
-
-  // On n'applique le blocage qu'une fois la présence connue (évite un faux "hors ligne" au montage).
-  const offlinePlayers = gameEvents.presenceReady
-    ? otherPlayers.filter((p) => !onlineSet.has(p.userId))
-    : [];
-  const allPlayersOnline = offlinePlayers.length === 0;
   const canPlay = phase === 'voting' && allPlayersOnline;
 
   // ── Rendu ─────────────────────────────────────────────────────────────────────
@@ -234,8 +239,9 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
           {/* Zone d'actions — visible en phase voting */}
           {phase === 'voting' && (
             <div className="bg-black/20 border border-white/5 rounded-3xl p-6 flex flex-col gap-4">
-              {/* Blocage — un ou plusieurs joueurs sont hors ligne */}
-              {!allPlayersOnline && (
+              {/* Blocage — un ou plusieurs joueurs sont hors ligne :
+                  timer suspendu + choix de vote masqués tant qu'on les attend. */}
+              {!allPlayersOnline ? (
                 <div className="flex items-start gap-3 rounded-xl border border-amber-900/40 bg-amber-950/20 px-4 py-3">
                   <WifiOff size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
                   <div>
@@ -248,9 +254,9 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
                     </p>
                   </div>
                 </div>
-              )}
-
-              <div className={`flex items-center justify-between ${!allPlayersOnline ? 'opacity-40 pointer-events-none' : ''}`}>
+              ) : (
+                <>
+              <div className="flex items-center justify-between">
                 <p className="text-xs font-black uppercase tracking-widest text-white">
                   {isResolved ? 'Action choisie' : 'Quelle est votre réponse ?'}
                 </p>
@@ -270,7 +276,7 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
               </div>
 
               {/* Actions suggérées */}
-              <div className={`flex flex-col gap-2 ${!allPlayersOnline ? 'opacity-40 pointer-events-none' : ''}`}>
+              <div className="flex flex-col gap-2">
                 {gameEvents.actions.map((action) => {
                   const voteCount  = gameEvents.votes.find((v) => v.actionId === action.id)?.count ?? 0;
                   const isSelected = selectedActionId === action.id;
@@ -366,6 +372,8 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
                 >
                   Lancer l&apos;action
                 </button>
+              )}
+                </>
               )}
             </div>
           )}
