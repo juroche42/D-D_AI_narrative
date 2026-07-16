@@ -187,7 +187,7 @@ export function RoomLobby({ room, currentUser }: RoomLobbyProps) {
                 ) : isHost && roomStatus === 'WAITING' ? (
                   <button
                     onClick={() => setShowCampaignModal(true)}
-                    className="bg-black/20 p-6 rounded-2xl border border-dashed border-red-900/40 flex flex-col items-center justify-center gap-2 min-h-30 text-gray-600 hover:border-red-600/60 hover:text-red-500 transition-colors"
+                    className="bg-black/20 p-6 rounded-2xl border border-dashed border-white/20 flex flex-col items-center justify-center gap-2 min-h-30 text-gray-400 hover:border-red-600/50 hover:text-red-400 transition-colors group"
                   >
                     <Layout size={28} />
                     <p className="text-xs font-bold uppercase tracking-wide">Choisir un scénario</p>
