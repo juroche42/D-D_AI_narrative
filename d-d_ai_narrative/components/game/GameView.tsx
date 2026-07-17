@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
-import { Loader2, Swords, ChevronRight, Clock, User, AlertTriangle, RotateCcw, Radio, Wifi, WifiOff } from 'lucide-react';
+import { Loader2, Swords, ChevronRight, User, AlertTriangle, RotateCcw, Radio, Wifi, WifiOff } from 'lucide-react';
 import { useNarrativeStream } from '@/hooks/useNarrativeStream';
 import { useGameEvents } from '@/hooks/useGameEvents';
 import { useGameTimer } from '@/hooks/useGameTimer';
@@ -13,7 +13,8 @@ type GamePhase =
   | 'intro_loading'   // Intro en cours de génération
   | 'actions_loading' // Attente des actions via SSE persistant
   | 'voting'          // Joueurs votent (compteurs en direct)
-  | 'scene_loading';  // Scène suivante en cours de génération
+  | 'scene_loading'   // Scène suivante en cours de génération
+  | 'finished';       // Histoire terminée — épilogue affiché
 
 export interface CurrentPlayer {
   userId:          string;
@@ -116,18 +117,34 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameEvents.isResolved]);
 
-  // 5. Scène terminée → recharger les actions pour le tour suivant
+  // 5. Scène terminée → fin d'histoire, ou rechargement des actions du tour suivant
   useEffect(() => {
     if (scene.status === 'done' && phase === 'scene_loading') {
       if (scene.text) setHistory((h) => [...h, scene.text]);
-      setPhase('actions_loading');
       setSelected(null);
       setFreeAction('');
       scene.reset();
-      gameEvents.reconnect();
+      if (gameEvents.storyEnded) {
+        // L'épilogue vient d'être streamé : on cloture sans recharger d'actions.
+        setPhase('finished');
+      } else {
+        setPhase('actions_loading');
+        gameEvents.reconnect();
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene.status]);
+
+  // 6. Fin d'histoire reçue hors phase de scène (client n'ayant pas streamé
+  //    l'épilogue) → afficher l'épilogue diffusé et clôturer.
+  useEffect(() => {
+    if (!gameEvents.storyEnded || phase === 'finished' || phase === 'scene_loading') return;
+    if (gameEvents.epilogue) {
+      setHistory((h) => (h[h.length - 1] === gameEvents.epilogue ? h : [...h, gameEvents.epilogue!]));
+    }
+    setPhase('finished');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameEvents.storyEnded]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
@@ -136,18 +153,11 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
     await gameEvents.castVote(selectedActionId);
   };
 
-  const handleConfirm = () => {
-    if (!selectedActionId && !freeAction.trim()) return;
-    if (!allPlayersOnline) return;
-
-    startTransition(() => {
-      setPhase('scene_loading');
-      const url = selectedActionId
-        ? `/api/game/${roomCode}/stream?type=scene&actionId=${selectedActionId}`
-        : `/api/game/${roomCode}/stream?type=scene&action=${encodeURIComponent(freeAction.trim())}`;
-      scene.reset();
-      scene.startStream(url);
-    });
+  const handleVoteFree = async () => {
+    const text = freeAction.trim();
+    if (!text) return;
+    await gameEvents.voteFree(text);
+    setFreeAction('');
   };
 
   // ── Texte courant ─────────────────────────────────────────────────────────────
@@ -190,9 +200,15 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
             </div>
             <div className="flex items-center gap-2">
               <Swords size={14} className="text-red-700" />
-              <span className="text-[9px] font-black uppercase tracking-widest text-green-500 border border-green-900/40 bg-green-950/20 px-2 py-0.5 rounded">
-                En cours
-              </span>
+              {phase === 'finished' ? (
+                <span className="text-[9px] font-black uppercase tracking-widest text-gray-400 border border-white/10 bg-white/5 px-2 py-0.5 rounded">
+                  Terminée
+                </span>
+              ) : (
+                <span className="text-[9px] font-black uppercase tracking-widest text-green-500 border border-green-900/40 bg-green-950/20 px-2 py-0.5 rounded">
+                  En cours
+                </span>
+              )}
             </div>
           </div>
 
@@ -340,38 +356,28 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
                 })}
               </div>
 
-              {/* Action libre */}
-              <div className="flex gap-2 pt-2 border-t border-white/5">
-                <input
-                  type="text"
-                  value={freeAction}
-                  onChange={(e) => {
-                    setFreeAction(e.target.value);
-                    if (e.target.value) setSelected(null);
-                  }}
-                  placeholder="Action libre..."
-                  maxLength={200}
-                  disabled={!canPlay}
-                  className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-gray-700 focus:outline-none focus:border-red-800 transition-colors disabled:opacity-40"
-                />
-                <button
-                  onClick={selectedActionId ? handleVote : handleConfirm}
-                  disabled={(!selectedActionId && !freeAction.trim()) || !canPlay}
-                  className="px-6 py-2.5 bg-red-700 hover:bg-red-600 disabled:bg-gray-800 disabled:text-gray-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors"
-                >
-                  {selectedActionId ? 'Voter' : 'Jouer'}
-                </button>
-              </div>
-
-              {/* Bouton Jouer l'action (pour les textes libres ou confirmer) */}
-              {(selectedActionId || freeAction.trim()) && (
-                <button
-                  onClick={handleConfirm}
-                  disabled={(!selectedActionId && !freeAction.trim()) || !canPlay}
-                  className="w-full py-3 border border-red-900/40 bg-red-950/10 hover:bg-red-950/20 disabled:opacity-40 text-red-400 text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors"
-                >
-                  Lancer l&apos;action
-                </button>
+              {/* Action libre — masquée si résolu */}
+              {!isResolved && (
+                <div className="flex gap-2 pt-2 border-t border-white/5">
+                  <input
+                    type="text"
+                    value={freeAction}
+                    onChange={(e) => {
+                      setFreeAction(e.target.value);
+                      if (e.target.value) setSelected(null);
+                    }}
+                    placeholder="Action libre..."
+                    maxLength={200}
+                    className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-gray-700 focus:outline-none focus:border-red-800 transition-colors"
+                  />
+                  <button
+                    onClick={selectedActionId ? handleVote : handleVoteFree}
+                    disabled={!selectedActionId && !freeAction.trim()}
+                    className="px-6 py-2.5 bg-red-700 hover:bg-red-600 disabled:bg-gray-800 disabled:text-gray-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors"
+                  >
+                    {selectedActionId ? 'Voter' : 'Jouer'}
+                  </button>
+                </div>
               )}
                 </>
               )}
@@ -383,6 +389,19 @@ export function GameView({ roomCode, campaign, currentPlayer, otherPlayers = [],
             <div className="flex items-center gap-3 text-gray-600 px-2">
               <Loader2 size={16} className="animate-spin" />
               <p className="text-xs font-black uppercase tracking-widest">Le Maître du Donjon réagit...</p>
+            </div>
+          )}
+
+          {/* Fin de l'histoire */}
+          {phase === 'finished' && (
+            <div className="bg-black/20 border border-white/5 rounded-3xl p-8 flex flex-col items-center gap-3 text-center">
+              <Swords size={20} className="text-red-700" />
+              <p className="text-sm font-black uppercase tracking-widest text-white">
+                Fin de l&apos;aventure
+              </p>
+              <p className="text-[11px] text-gray-500 max-w-md">
+                Votre quête s&apos;achève ici. Merci d&apos;avoir joué à {campaign.title}.
+              </p>
             </div>
           )}
         </div>
