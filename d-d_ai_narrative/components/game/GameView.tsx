@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Loader2, Swords, ChevronRight, User, AlertTriangle, RotateCcw, Radio } from 'lucide-react';
+import { useState, useEffect, useTransition } from 'react';
+import { Loader2, Swords, ChevronRight, User, AlertTriangle, RotateCcw, Radio, Wifi, WifiOff } from 'lucide-react';
 import { useNarrativeStream } from '@/hooks/useNarrativeStream';
 import { useGameEvents } from '@/hooks/useGameEvents';
 import { useGameTimer } from '@/hooks/useGameTimer';
