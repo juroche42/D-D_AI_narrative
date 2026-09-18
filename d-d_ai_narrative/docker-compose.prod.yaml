@@ -1,0 +1,52 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dnd_ai_app
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.dnd-ai.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.dnd-ai.entrypoints=websecure"
+      - "traefik.http.routers.dnd-ai.tls.certresolver=letsencrypt"
+      - "traefik.http.services.dnd-ai.loadbalancer.server.port=3000"
+      # Streaming SSE : laisser le temps aux réponses longues de se terminer
+      - "traefik.http.services.dnd-ai.loadbalancer.responseforwarding.flushinterval=100ms"
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: dnd_ai_postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+
+networks:
+  internal:
+  traefik:
+    external: true
