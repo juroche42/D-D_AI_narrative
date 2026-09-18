@@ -15,6 +15,10 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# DATABASE_URL n'a besoin que d'etre presente (pas valide/joignable) : le Pool pg
+# est instancie au chargement du module mais ne se connecte qu'a la 1ere requete.
+ARG DATABASE_URL="postgresql://build:build@localhost:5432/build"
+ENV DATABASE_URL=${DATABASE_URL}
 RUN pnpm prisma generate
 RUN pnpm build
 
