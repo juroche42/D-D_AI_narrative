@@ -1,14 +1,31 @@
 import NextAuth from 'next-auth';
 import { authConfig } from '@/lib/auth/auth.config';
+import { ALPHA_GATE_COOKIE, computeAlphaGateToken, isAlphaGateEnabled } from '@/lib/alphaGate';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const { auth } = NextAuth(authConfig);
 
-export const proxy = auth((req: NextRequest) => {
+const ALPHA_GATE_PATH = '/alpha-gate';
+
+export const proxy = auth(async (req: NextRequest) => {
+  const { pathname } = req.nextUrl;
+
+  // Porte d'accès alpha : bloque tout le site tant que le code n'a pas été validé.
+  if (isAlphaGateEnabled() && pathname !== ALPHA_GATE_PATH) {
+    const expectedToken = await computeAlphaGateToken();
+    const cookieToken = req.cookies.get(ALPHA_GATE_COOKIE)?.value;
+    if (!expectedToken || cookieToken !== expectedToken) {
+      const url = req.nextUrl.clone();
+      url.pathname = ALPHA_GATE_PATH;
+      url.searchParams.set('next', pathname);
+      return NextResponse.redirect(url);
+    }
+  }
+
   const startTime = Date.now();
   const requestId = crypto.randomUUID();
-  const { pathname, method } = { pathname: req.nextUrl.pathname, method: req.method };
+  const { method } = req;
 
   console.log(
     JSON.stringify({
