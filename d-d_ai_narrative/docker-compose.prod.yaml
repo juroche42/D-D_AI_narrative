@@ -23,6 +23,25 @@ services:
       # Streaming SSE : laisser le temps aux réponses longues de se terminer
       - "traefik.http.services.dnd-ai.loadbalancer.responseforwarding.flushinterval=100ms"
 
+  # Service d'admin (migrations Prisma, indexation SRD, ...).
+  # Utilise l'etape "builder" du Dockerfile : code source complet + toutes les
+  # deps (contrairement a "app", qui tourne sur le build standalone minimal).
+  # Usage: docker compose -f docker-compose.prod.yaml --profile tools run --rm cli <commande>
+  cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+    profiles:
+      - tools
+
   postgres:
     image: pgvector/pgvector:pg17
     container_name: dnd_ai_postgres
