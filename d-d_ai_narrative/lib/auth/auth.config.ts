@@ -4,6 +4,7 @@ import type { NextAuthConfig } from 'next-auth';
 const PUBLIC_PATHS = [
   '/login',
   '/register',
+  '/alpha-gate',
   '/api/auth',
   '/api/health',
   '/api/docs',

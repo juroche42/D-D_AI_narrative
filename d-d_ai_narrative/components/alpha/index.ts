@@ -1,0 +1,1 @@
+export { AlphaGateForm } from './AlphaGateForm';
